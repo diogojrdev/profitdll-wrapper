@@ -13,11 +13,11 @@
 # (the tag must match profitdll_wrapper.__version__ without the leading "v").
 name: Publish to PyPI
 
+# Only the release event (not tag push): creating a GitHub Release with a new
+# tag fires both events, and a second publish attempt would be rejected by PyPI.
 on:
   release:
     types: [published]
-  push:
-    tags: ["v*"]
 
 concurrency:
   group: publish-${{ github.ref }}
