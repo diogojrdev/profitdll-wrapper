@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from ctypes import (
     POINTER,
-    WINFUNCTYPE,
     c_bool,
     c_double,
     c_int32,
@@ -30,6 +29,14 @@ from ctypes import (
     c_uint32,
     c_wchar_p,
 )
+
+# WINFUNCTYPE (stdcall) only exists on Windows. Aliasing CFUNCTYPE keeps the
+# package importable on other platforms (docs, IDEs, CI); actually connecting
+# still raises PlatformNotSupportedError in the loader.
+try:
+    from ctypes import WINFUNCTYPE
+except ImportError:
+    from ctypes import CFUNCTYPE as WINFUNCTYPE
 from typing import TypeVar
 
 from profitdll_wrapper._bindings.structures import (
