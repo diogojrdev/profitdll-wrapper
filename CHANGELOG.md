@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Package is importable on non-Windows platforms again: `WINFUNCTYPE` (Windows-only
   in `ctypes`) is now aliased to `CFUNCTYPE` outside Windows, so Linux CI legs and
   cross-platform imports work; connecting still raises `PlatformNotSupportedError`.
+- `test_load_dll_success_calls_windll` patches `ctypes.WinDLL` with
+  `raising=False` so the Windows simulation also runs on Linux CI runners.
 - CI lint job (Ubuntu) now type-checks with `platform = "win32"`: `ctypes.WinDLL`
   and `os.add_dll_directory` only exist in typeshed for Windows targets.
 - `PROFITDLL_PATH` env var name had been corrupted to

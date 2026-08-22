@@ -71,7 +71,9 @@ class TestLoadDll:
 
         monkeypatch.setattr("platform.system", lambda: "Windows")
         mock_win_dll = MagicMock()
-        monkeypatch.setattr("ctypes.WinDLL", mock_win_dll)
+        # raising=False: ctypes.WinDLL does not exist on non-Windows runners,
+        # where this test simulates Windows to exercise the load path.
+        monkeypatch.setattr("ctypes.WinDLL", mock_win_dll, raising=False)
 
         _load_dll(explicit=dll_file)
         mock_win_dll.assert_called_once_with(str(dll_file.resolve()))
