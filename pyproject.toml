@@ -14,7 +14,7 @@ build-backend = "hatchling.build"
 name = "profitdll-wrapper"
 # Version is read dynamically from profitdll_wrapper.__version__ (single source of truth).
 dynamic = ["version"]
-description = "Unofficial, idiomatic, typed Python wrapper for ProfitDLL (Nelogica native API). No affiliation with Nelogica; no financial liability."
+description = "Idiomatic, typed Python wrapper for ProfitDLL (Nelogica native API). Independent community project — not affiliated with Nelogica; no financial liability."
 readme = "README.md"
 requires-python = ">=3.10,<4.0"
 license = "MIT"

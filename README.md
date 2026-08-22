@@ -22,10 +22,11 @@ High-performance, idiomatic, typed, and memory-safe Python wrapper for **ProfitD
 ---
 
 > [!WARNING]
-> **Unofficial project — not affiliated with Nelogica.** `profitdll-wrapper` is an
-> independent, community-driven wrapper. Profit, ProfitDLL, and related names are
-> products and trademarks of Nelogica, which does not endorse, sponsor, or support
-> this project. The proprietary DLL is not distributed here.
+> **Independent, community-driven project — not affiliated with Nelogica.**
+> `profitdll-wrapper` is developed and maintained by the community. Profit,
+> ProfitDLL, and related names are products and trademarks of Nelogica, which
+> does not endorse, sponsor, or support this project. The proprietary DLL is
+> not distributed here.
 >
 > **No financial responsibility.** This software can place real orders with real
 > money when connected to a real brokerage account. It is provided "as is", without
@@ -246,7 +247,7 @@ uv run pytest -m integration
 
 [MIT](LICENSE). Nelogica's native ProfitDLL is proprietary software and is not included in this repository.
 
-This is an **unofficial** project with no affiliation to Nelogica, and it is provided with **no financial liability** for trading losses — see the disclaimer at the top.
+This is an independent, community-maintained project with no affiliation to Nelogica, and it is provided with **no financial liability** for trading losses — see the disclaimer at the top.
 
 ## Contributing
 

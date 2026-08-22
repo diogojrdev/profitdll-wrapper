@@ -2,7 +2,7 @@
 
 `profitdll-wrapper` handles brokerage trading credentials and order routing — security is a top priority.
 
-This is an **unofficial** project, not affiliated with or endorsed by Nelogica.
+This is an independent, community-maintained project, not affiliated with or endorsed by Nelogica.
 
 ## Supported Versions
 

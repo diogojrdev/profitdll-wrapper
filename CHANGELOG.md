@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced the "unofficial" wording with "independent, community-maintained" in
+  README, docs, SECURITY.md, and the package description; the not-affiliated
+  disclaimers remain.
 - README installation instructions now target PyPI (`pip install` / `uv add`,
   with optional extras documented); the source checkout moved to the
   Development section.

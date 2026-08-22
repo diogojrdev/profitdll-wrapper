@@ -2,7 +2,7 @@
 
 > **Status:** Initial public release (v0.1.0, alpha). This directory contains the architectural specifications, API audits, and design blueprints for `profitdll-wrapper`.
 >
-> **Unofficial project** — not affiliated with or endorsed by Nelogica. Provided "as is" with no financial liability for trading outcomes; see the disclaimer in the [project README](../README.md).
+> **Independent community project** — not affiliated with or endorsed by Nelogica. Provided "as is" with no financial liability for trading outcomes; see the disclaimer in the [project README](../README.md).
 
 A modern, **idiomatic, strictly typed, and thread-safe** Python wrapper around Nelogica's ProfitDLL (native C/Delphi API using `stdcall` calling convention, featuring memory pointers and asynchronous callbacks dispatched from a dedicated native `ConnectorThread`).
 
