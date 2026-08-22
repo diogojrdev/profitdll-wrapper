@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- CI lint job (Ubuntu) now type-checks with `platform = "win32"`: `ctypes.WinDLL`
+  and `os.add_dll_directory` only exist in typeshed for Windows targets.
 - `PROFITDLL_PATH` env var name had been corrupted to
   `profitdll_wrapper_PATH` in the integration-test `simulator_env` fixture.
 - Docstring cross-reference `profitdll.client.ProfitClient` corrected to

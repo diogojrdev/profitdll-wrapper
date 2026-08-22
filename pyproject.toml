@@ -142,6 +142,9 @@ ignore = ["E501"]
 # --------------------------------------------------------------------------- #
 [tool.mypy]
 python_version = "3.10"
+# Always type-check as Windows: ctypes.WinDLL / os.add_dll_directory only exist
+# in typeshed for win32, so Linux CI hosts would otherwise report name-defined errors.
+platform = "win32"
 strict = true
 warn_unused_ignores = true
 files = ["src"]
