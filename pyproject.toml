@@ -1,0 +1,169 @@
+# =============================================================================
+# profitdll-wrapper — Idiomatic Python wrapper for ProfitDLL (Nelogica)
+# Managed with uv; PEP 517 hatchling backend; src/ layout.
+# =============================================================================
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+# --------------------------------------------------------------------------- #
+# Package Metadata
+# --------------------------------------------------------------------------- #
+[project]
+name = "profitdll-wrapper"
+# Version is read dynamically from profitdll_wrapper.__version__ (single source of truth).
+dynamic = ["version"]
+description = "Unofficial, idiomatic, typed Python wrapper for ProfitDLL (Nelogica native API). No affiliation with Nelogica; no financial liability."
+readme = "README.md"
+requires-python = ">=3.10,<4.0"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Diogo Ribeiro", email = "diogojr.dev@gmail.com" }]
+maintainers = [{ name = "Diogo Ribeiro", email = "diogojr.dev@gmail.com" }]
+keywords = [
+    "trading",
+    "b3",
+    "profit",
+    "nelogica",
+    "market-data",
+    "profitdll",
+    "profitdll-wrapper",
+    "dll",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Financial and Insurance Industry",
+    # License is declared via the SPDX `license` expression (PEP 639); no License classifier.
+    "Natural Language :: English",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Typing :: Typed",
+]
+# Zero runtime dependencies: ctypes is standard library.
+# Optional backends are declared below under [project.optional-dependencies].
+dependencies = []
+
+# --------------------------------------------------------------------------- #
+# Optional backends for the ingest subpackage (keeps the core dependency-free).
+# Install with:  uv sync --extra postgres   (or parquet / all)
+# --------------------------------------------------------------------------- #
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.2,<4"]
+parquet = ["duckdb>=1.1"]
+all = ["profitdll-wrapper[postgres,parquet]"]
+
+# Console entry point for historical data ingestion.
+[project.scripts]
+profitdll-ingest = "profitdll_wrapper.ingest.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/diogojrdev/profitdll-wrapper"
+Repository = "https://github.com/diogojrdev/profitdll-wrapper"
+Documentation = "https://github.com/diogojrdev/profitdll-wrapper#readme"
+"Bug Tracker" = "https://github.com/diogojrdev/profitdll-wrapper/issues"
+Changelog = "https://github.com/diogojrdev/profitdll-wrapper/blob/main/CHANGELOG.md"
+
+# --------------------------------------------------------------------------- #
+# Dependency Groups (PEP 735) — consumed natively by uv.
+# Dev environment setup:    uv sync
+# Docs setup:               uv sync --group docs
+# --------------------------------------------------------------------------- #
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pre-commit>=3.8",
+    "bandit>=1.7",
+    # Runs the Parquet sink tests (same package as the optional 'parquet' extra).
+    "duckdb>=1.1",
+]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
+]
+
+# --------------------------------------------------------------------------- #
+# Build (hatchling) — src/ layout, packaging + py.typed.
+# Native DLL is NOT distributed (proprietary); resolved from ./dll/ or PROFITDLL_PATH.
+# --------------------------------------------------------------------------- #
+[tool.hatch.version]
+path = "src/profitdll_wrapper/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/profitdll_wrapper"]
+
+# The sdist mirrors what the README references (examples, docs, ingest setup),
+# so users building from source can follow every documented workflow.
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/profitdll_wrapper",
+    "tests",
+    "examples",
+    "docs",
+    "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "LICENSE",
+    "mkdocs.yml",
+    ".env.example",
+    "docker-compose.yml",
+]
+exclude = [".env", "dll", "examples-nelogica", "site"]
+
+# --------------------------------------------------------------------------- #
+# Ruff — linter + formatter (rules: E,F,I,UP,B,SIM,RUF)
+# --------------------------------------------------------------------------- #
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+extend-exclude = ["examples-nelogica", "docs", "examples"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]
+
+# --------------------------------------------------------------------------- #
+# mypy — strict mode with targeted ctypes overrides
+# --------------------------------------------------------------------------- #
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unused_ignores = true
+files = ["src"]
+
+[[tool.mypy.overrides]]
+module = "profitdll_wrapper._bindings.*"
+disable_error_code = ["attr-defined"]
+
+# Optional 'postgres' extra is not installed in the lint environment.
+[[tool.mypy.overrides]]
+module = "psycopg.*"
+ignore_missing_imports = true
+
+# --------------------------------------------------------------------------- #
+# pytest configuration
+# --------------------------------------------------------------------------- #
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers -m \"not integration\" --cov=profitdll_wrapper --cov-report=term-missing"
+
+[tool.coverage.report]
+fail_under = 80
+

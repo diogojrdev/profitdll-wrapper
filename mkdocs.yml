@@ -1,0 +1,68 @@
+site_name: profitdll-wrapper
+site_description: Idiomatic, typed, and safe Python wrapper for ProfitDLL (Nelogica).
+site_url: https://github.com/diogojrdev/profitdll-wrapper
+repo_url: https://github.com/diogojrdev/profitdll-wrapper
+repo_name: diogojrdev/profitdll-wrapper
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+
+nav:
+  - Home: README.md
+  - Architecture: ARCHITECTURE.md
+  - API Surface: API_SURFACE.md
+  - Ingest: INGEST.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/diogojrdev/profitdll-wrapper
+

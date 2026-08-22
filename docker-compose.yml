@@ -1,0 +1,35 @@
+# Docker Compose for profitdll-wrapper ingestion backends.
+#
+# Only the database runs in Docker. The native ProfitDLL is Windows-only, so
+# the ingestion script runs on the Windows host (where the DLL is installed)
+# and connects to the database over the local port.
+#
+# Usage:
+#   1. Copy .env.example to .env and set TIMESCALE_PASSWORD.
+#   2. docker compose up -d timescaledb
+#   3. From the host: uv sync --extra postgres
+#   4. profitdll-ingest --to postgres \
+#        --db-url postgresql://${TIMESCALE_USER}:${TIMESCALE_PASSWORD}@localhost:${TIMESCALE_PORT}/${TIMESCALE_DB} \
+#        --ticker VALE3 --start 01/01/2026 --end 31/01/2026
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: profitdll-timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${TIMESCALE_USER:-profit}
+      POSTGRES_PASSWORD: ${TIMESCALE_PASSWORD:?Set TIMESCALE_PASSWORD in .env before starting the database}
+      POSTGRES_DB: ${TIMESCALE_DB:-profit}
+    ports:
+      - "${TIMESCALE_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${TIMESCALE_USER:-profit}", "-d", "${TIMESCALE_DB:-profit}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

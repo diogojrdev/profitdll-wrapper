@@ -1,0 +1,28 @@
+"""Shared utility functions for profitdll-wrapper examples and scripts.
+
+Credential and DLL-path resolution delegate to :mod:`profitdll_wrapper._config`
+so examples and the library can never drift apart.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from profitdll_wrapper._config import (
+    load_credentials as _load_credentials_map,
+    load_env_file,
+    setup_dll_path,
+)
+
+__all__ = ["load_credentials", "load_env", "setup_dll_path"]
+
+
+def load_credentials() -> tuple[str, str, str, str]:
+    """Loads ``(activation_key, user, password, account)`` from environment or ``.env``."""
+    creds = _load_credentials_map()
+    return creds["activation_key"], creds["user"], creds["password"], creds["account"]
+
+
+def load_env(env_path: Path | str | None = None) -> dict[str, str]:
+    """Parses a ``.env`` file into a dict (default: repo-root ``.env``)."""
+    return load_env_file(env_path)

@@ -1,0 +1,66 @@
+# Publishes the package to PyPI via Trusted Publishing (OIDC — no API token).
+#
+# One-time setup:
+#   1. pypi.org → account settings → "Add a new pending publisher":
+#        PyPI project name: profitdll-wrapper
+#        Owner:  <your GitHub user/org>
+#        Repository: <repo name>
+#        Workflow name: publish.yml
+#        Environment name: pypi
+#   2. GitHub → repo settings → Environments → create "pypi".
+#
+# Then publish by creating a GitHub Release with a tag like `v0.1.0`
+# (the tag must match profitdll_wrapper.__version__ without the leading "v").
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build sdist & wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Build distributions
+        run: uv build
+
+      - name: Verify metadata
+        run: uvx twine check dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Upload to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/profitdll-wrapper
+    permissions:
+      id-token: write # OIDC token for Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

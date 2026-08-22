@@ -1,0 +1,41 @@
+# Hooks de pré-commit do profitdll.
+# As ferramentas (ruff, mypy) rodam dentro do ambiente uv, sem instalar nada global.
+# Configuração:
+#   uv run pre-commit install     # instala os hooks git
+#   uv run pre-commit run --all-files
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+        exclude: ^docs/profitdll\.md$  # doc gerado/extraído
+      - id: trailing-whitespace
+        exclude: ^docs/profitdll\.md$
+      - id: check-added-large-files
+        args: ["--maxkb=512"] # protege contra comitar a DLL de 50MB
+
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check (via uv)
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+        pass_filenames: true
+
+      - id: ruff-format
+        name: ruff format (via uv)
+        entry: uv run ruff format
+        language: system
+        types: [python]
+        pass_filenames: true
+
+      - id: mypy
+        name: mypy (via uv)
+        entry: uv run mypy src
+        language: system
+        types: [python]
+        pass_filenames: false # mypy analisa o projeto inteiro

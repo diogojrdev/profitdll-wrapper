@@ -1,0 +1,76 @@
+# ----------------------------------------------------------------------------
+# profitdll .gitignore
+# ----------------------------------------------------------------------------
+
+# ---- Segredos / credenciais (NUNCA commitar) ----
+.env
+.env.*
+!.env.example
+
+# ---- DLL nativa e arquivos auxiliares (proprietária Nelogica) ----
+# Toda a pasta dll/ e arquivos de dados locais são ignorados por segurança.
+dll/
+*.dll
+*.DLL
+*.dat
+*.aju
+*.log
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.eggs/
+
+# ---- Empacotamento / build ----
+build/
+dist/
+sdist/
+wheels/
+pip-wheel-metadata/
+
+# ---- Testes / cobertura ----
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+
+# ---- Ferramentas de qualidade ----
+.ruff_cache/
+.mypy_cache/
+
+# ---- Ambiente virtual ----
+.venv/
+venv/
+env/
+
+# ---- Documentação (mkdocs build) ----
+site/
+
+# ---- Ingestão de dados ----
+# SQLite databases e CSV/Parquet output.
+data/
+profit_data.db
+*.db
+
+# ---- IDE / editores / SO ----
+.idea/
+.vscode/
+.zcode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Vendor manual (Nelogica copyright) — never publish: kept outside the repo
+profitdll.pdf
+docs/profitdll.md
+
+# Local AI-session rules (reference the out-of-repo vendor manual)
+.agents/
