@@ -4,7 +4,7 @@
 
 High-performance, idiomatic, typed, and memory-safe Python wrapper for **ProfitDLL** (Nelogica's native API).
 
-[![PyPI](https://img.shields.io/pypi/v/profitdll-wrapper.svg)](https://pypi.org/project/profitdll-wrapper)
+[![PyPI](https://img.shields.io/pypi/v/profitdll-wrapper.svg?cacheSeconds=3600)](https://pypi.org/project/profitdll-wrapper)
 [![Python](https://img.shields.io/badge/python-3.10%E2%80%933.13-blue.svg)](https://www.python.org)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://docs.astral.sh/ruff)
 [![Type Checking: mypy](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy.readthedocs.io)
