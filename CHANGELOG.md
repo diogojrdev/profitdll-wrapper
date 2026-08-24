@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Portuguese (pt-BR) README (`README.pt-BR.md`) with a language selector in both
+  READMEs; the examples section now lists all nine `examples/` scripts; new
+  "Feedback" section linking to the issue chooser.
+- GitHub issue templates (bug report, feature request) and issue-chooser contact
+  links (docs site, PyPI, security policy).
+- MkDocs documentation site deployed to GitHub Pages by the new `docs.yml`
+  workflow (`mkdocs build --strict` + `actions/deploy-pages`).
 - Prominent "unofficial / not affiliated with Nelogica" and no-financial-liability
   disclaimers in README, docs index, SECURITY.md, and the package description.
 - Renamed PyPI package to `profitdll-wrapper` and module to `profitdll_wrapper`.
@@ -17,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Documentation links (READMEs and the `Documentation` URL in `pyproject.toml`)
+  now point to the GitHub Pages site instead of repository blobs; the pt-BR
+  README ships in the sdist.
 - Replaced the "unofficial" wording with "independent, community-maintained" in
   README, docs, SECURITY.md, and the package description; the not-affiliated
   disclaimers remain.
@@ -33,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `docs/README.md` linked the repository-root README via `../README.md`, which
+  broke `mkdocs build --strict` (target outside `docs_dir`); it now links to the
+  GitHub README URL instead.
 - Package is importable on non-Windows platforms again: `WINFUNCTYPE` (Windows-only
   in `ctypes`) is now aliased to `CFUNCTYPE` outside Windows, so Linux CI legs and
   cross-platform imports work; connecting still raises `PlatformNotSupportedError`.
