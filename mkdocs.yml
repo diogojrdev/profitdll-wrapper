@@ -1,6 +1,6 @@
 site_name: profitdll-wrapper
 site_description: Idiomatic, typed, and safe Python wrapper for ProfitDLL (Nelogica).
-site_url: https://github.com/diogojrdev/profitdll-wrapper
+site_url: https://diogojrdev.github.io/profitdll-wrapper/
 repo_url: https://github.com/diogojrdev/profitdll-wrapper
 repo_name: diogojrdev/profitdll-wrapper
 edit_uri: edit/main/docs/
