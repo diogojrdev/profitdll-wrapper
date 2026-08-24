@@ -11,6 +11,8 @@ High-performance, idiomatic, typed, and memory-safe Python wrapper for **ProfitD
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-v0.1.0--alpha-orange.svg)](#status)
 
+**English** | [Português (BR)](README.pt-BR.md)
+
 </div>
 
 ---
@@ -48,13 +50,13 @@ It abstracts away low-level ctypes complexity and provides:
 - **Fault Tolerance & Safety**: User exception isolation in event handlers ensures callback failures never crash the native DLL process or interrupt data streams;
 - **Zero Runtime Dependencies**: Built strictly using the Python standard library (`dependencies = []`).
 
-Detailed architectural and API documentation is available in [`docs/`](docs/):
+Detailed architectural and API documentation is published at <https://diogojrdev.github.io/profitdll-wrapper/>:
 
 | Document | Content |
 |---|---|
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Layer design, abstraction patterns, and thread-safety invariants |
-| [`docs/API_SURFACE.md`](docs/API_SURFACE.md) | Native ProfitDLL function mapping and ABI audit |
-| [`docs/INGEST.md`](docs/INGEST.md) | Historical data ingestion: sinks, schema, and the `profitdll-ingest` CLI |
+| [Architecture](https://diogojrdev.github.io/profitdll-wrapper/ARCHITECTURE/) | Layer design, abstraction patterns, and thread-safety invariants |
+| [API Surface](https://diogojrdev.github.io/profitdll-wrapper/API_SURFACE/) | Native ProfitDLL function mapping and ABI audit |
+| [Ingest](https://diogojrdev.github.io/profitdll-wrapper/INGEST/) | Historical data ingestion: sinks, schema, and the `profitdll-ingest` CLI |
 
 ---
 
@@ -162,11 +164,19 @@ with ProfitClient(
 
 ## Practical Examples
 
-Explore the [`examples/`](examples/) directory:
+Explore the [`examples/`](examples/) directory — nine ready-to-run scripts, from market data streaming to trading bots:
 
-- [`01_subscribe_ticker.py`](examples/01_subscribe_ticker.py): Minimal real-time trade tick streaming;
-- [`02_price_depth.py`](examples/02_price_depth.py): Order book depth update and snapshot streaming;
-- [`03_live_smoke.py`](examples/03_live_smoke.py): Complete self-contained live smoke test (connects, collects events, generates report).
+| Script | Category | Description | Mode |
+|---|---|---|---|
+| [`01_subscribe_ticker.py`](examples/01_subscribe_ticker.py) | MVP / Quotes | Minimal real-time trade tick streaming | `market_data` |
+| [`02_price_depth.py`](examples/02_price_depth.py) | Price Book | Order book depth updates and snapshots | `market_data` |
+| [`03_live_smoke.py`](examples/03_live_smoke.py) | Smoke Test | Self-contained live validation with report | `market_data` / `routing` |
+| [`04_send_order.py`](examples/04_send_order.py) | Routing | Limit buy/sell orders and execution tracking | `routing` |
+| [`05_market_data_streamer.py`](examples/05_market_data_streamer.py) | Data Streamer | Trades, V2 book, close prices → CSV / pandas DataFrame | `market_data` |
+| [`06_trading_bot_sample.py`](examples/06_trading_bot_sample.py) | Trading Bot | Full bot blueprint: state machine, order manager, Stop Loss & Take Profit | `routing` |
+| [`07_watchdog_and_reconciliation.py`](examples/07_watchdog_and_reconciliation.py) | Infra / Reconciliation | DLL health watchdog, auto-reconnect, daily position reconciliation | `routing` |
+| [`08_corporate_actions_and_history.py`](examples/08_corporate_actions_and_history.py) | History & Corporate Actions | Tick-by-tick history download and corporate actions | `market_data` |
+| [`09_historical_to_database.py`](examples/09_historical_to_database.py) | History → Database | Historical trades to SQLite via the `ingest` subpackage | `market_data` |
 
 ---
 
@@ -215,7 +225,7 @@ print(f"{stats.trades_written} trades persisted in {stats.elapsed_seconds:.1f}s"
 sink.close()
 ```
 
-See [`docs/INGEST.md`](docs/INGEST.md) for schema details, hypertables, idempotency, and tuning, and [`examples/09_historical_to_database.py`](examples/09_historical_to_database.py) for a runnable end-to-end example.
+See the [ingestion guide](https://diogojrdev.github.io/profitdll-wrapper/INGEST/) for schema details, hypertables, idempotency, and tuning, and [`examples/09_historical_to_database.py`](examples/09_historical_to_database.py) for a runnable end-to-end example.
 
 ---
 
@@ -240,6 +250,12 @@ Integration tests running against Nelogica's real DLL and simulator use the `@py
 ```bash
 uv run pytest -m integration
 ```
+
+---
+
+## Feedback
+
+If `profitdll-wrapper` helps you trade on B3, consider giving it a ⭐ and [opening an issue](https://github.com/diogojrdev/profitdll-wrapper/issues/new/choose) with feedback — early-stage issues are gold for prioritizing the roadmap.
 
 ---
 
