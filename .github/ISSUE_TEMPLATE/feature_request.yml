@@ -1,0 +1,35 @@
+name: ✨ Feature request
+description: Suggest an idea for profitdll-wrapper.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What are you trying to do that profitdll-wrapper makes hard or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What should the API/behavior look like? A code sketch helps a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds, raw ctypes calls, or other libraries you tried.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Market data (trades, price book)
+        - Order routing & custody
+        - Historical data / ingest
+        - DX (docs, examples, packaging)
+        - Other
+    validations:
+      required: true

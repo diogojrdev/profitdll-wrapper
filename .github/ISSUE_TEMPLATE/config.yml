@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 Documentation
+    url: https://diogojrdev.github.io/profitdll-wrapper/
+    about: Architecture, API surface, and the historical data ingestion guide.
+  - name: 📦 PyPI
+    url: https://pypi.org/project/profitdll-wrapper
+    about: Released packages and metadata.
+  - name: 🔐 Reporting a vulnerability
+    url: https://github.com/diogojrdev/profitdll-wrapper/blob/main/SECURITY.md
+    about: Security issues must follow the security policy, not a public issue.

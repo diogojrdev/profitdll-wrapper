@@ -1,0 +1,75 @@
+name: 🐛 Bug report
+description: Something is not working as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug!
+        **Security issues must not be reported here** — see [SECURITY.md](https://github.com/diogojrdev/profitdll-wrapper/blob/main/SECURITY.md).
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of what the bug is. What did you expect to happen?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: profitdll-wrapper version
+      description: Output of `pip show profitdll-wrapper` (or the version in your lockfile).
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: dll-version
+    attributes:
+      label: ProfitDLL version
+      description: Version/date of the native ProfitDLL you run against, if known (found in the vendor's release notes or DLL properties).
+      placeholder: "e.g. ProfitDLL64 2026-XX"
+  - type: dropdown
+    id: windows
+    attributes:
+      label: Windows version
+      options:
+        - Windows 11
+        - Windows 10
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: python
+    attributes:
+      label: Python version
+      options:
+        - "3.10"
+        - "3.11"
+        - "3.12"
+        - "3.13"
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Client mode
+      options:
+        - market_data
+        - routing
+        - Not applicable
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: A minimal, self-contained code snippet that triggers the bug. Redact credentials!
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / traceback
+      description: Relevant log output or the full traceback. Redact credentials!
+      render: text
