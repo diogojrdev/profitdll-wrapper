@@ -66,7 +66,7 @@ profitdll-ingest = "profitdll_wrapper.ingest.cli:main"
 [project.urls]
 Homepage = "https://github.com/diogojrdev/profitdll-wrapper"
 Repository = "https://github.com/diogojrdev/profitdll-wrapper"
-Documentation = "https://github.com/diogojrdev/profitdll-wrapper#readme"
+Documentation = "https://diogojrdev.github.io/profitdll-wrapper/"
 "Bug Tracker" = "https://github.com/diogojrdev/profitdll-wrapper/issues"
 Changelog = "https://github.com/diogojrdev/profitdll-wrapper/blob/main/CHANGELOG.md"
 
@@ -111,6 +111,7 @@ include = [
     "examples",
     "docs",
     "README.md",
+    "README.pt-BR.md",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
     "SECURITY.md",
