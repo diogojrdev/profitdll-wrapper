@@ -39,8 +39,8 @@ def main() -> int:
         )
         return 2
 
-    ticker = "WDOFUT"
-    exchange = "F"  # BMF (Derivatives)
+    ticker = "PETR4"
+    exchange = "B"  # Bovespa (B3 equities)
 
     try:
         with ProfitClient(
@@ -69,7 +69,7 @@ def main() -> int:
             # 1. Query initial position
             try:
                 pos = client.get_position(ticker, exchange=exchange, account=account)
-                print(f"Initial custody position for {ticker}: {pos.quantity} contracts @ {pos.average_price:.2f}")
+                print(f"Initial custody position for {ticker}: {pos.quantity} shares @ {pos.average_price:.2f}")
             except Exception as exc:
                 print(f"Could not query initial custody position: {exc}")
 
@@ -80,8 +80,8 @@ def main() -> int:
                 exchange=exchange,
                 account=account,
                 password=password,
-                price=4000.0,  # Safe test price far below market
-                quantity=1,
+                price=1.0,  # Safe test price far below market
+                quantity=100,  # 1 standard lot of PETR4 shares on B3
             )
             print(f"Order successfully placed! ProfitID: {order_id}")
 

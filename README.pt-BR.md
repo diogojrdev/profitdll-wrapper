@@ -165,7 +165,7 @@ with ProfitClient(
 
 ## Exemplos práticos
 
-Explore o diretório [`examples/`](examples/) — nove scripts prontos para rodar, do streaming de market data a bots de trading:
+Explore o diretório [`examples/`](examples/) — onze scripts prontos para rodar, do streaming de market data a bots de trading:
 
 | Script | Categoria | Descrição | Modo |
 |---|---|---|---|
@@ -178,6 +178,8 @@ Explore o diretório [`examples/`](examples/) — nove scripts prontos para roda
 | [`07_watchdog_and_reconciliation.py`](examples/07_watchdog_and_reconciliation.py) | Infra / Reconciliação | Watchdog de saúde da DLL, reconexão automática e reconciliação diária de posições | `routing` |
 | [`08_corporate_actions_and_history.py`](examples/08_corporate_actions_and_history.py) | Histórico & Eventos corporativos | Download de histórico tick a tick e eventos corporativos | `market_data` |
 | [`09_historical_to_database.py`](examples/09_historical_to_database.py) | Histórico → Banco de dados | Trades históricos para SQLite via subpacote `ingest` | `market_data` |
+| [`10_times_and_trades_tui.py`](examples/10_times_and_trades_tui.py) | TUI / Market Data | Times & Trades com barra de resumo nativa, fita espelhada comprador/vendedor, barras de volume e medidor de pressão (`rich`, `--demo` em qualquer OS) | `market_data` |
+| [`11_order_book_tui.py`](examples/11_order_book_tui.py) | TUI / Market Data | Livro de ofertas completo (DOM L2) com barra de resumo nativa, lados Compra/Venda espelhados e barras de volume proporcionais (`rich`, `--demo` em qualquer OS) | `market_data` |
 
 ---
 

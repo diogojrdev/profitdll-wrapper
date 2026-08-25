@@ -36,8 +36,8 @@ def main() -> int:
         logger.error("Missing credentials. Please set PROFITDLL_ACTIVATION_KEY, PROFITDLL_USER, and PROFITDLL_PASSWORD in .env")
         return 2
 
-    ticker = os.environ.get("HIST_TICKER", "WINFUT")
-    exchange = os.environ.get("HIST_EXCHANGE", "F")
+    ticker = os.environ.get("HIST_TICKER", "PETR4")
+    exchange = os.environ.get("HIST_EXCHANGE", "B")
 
     # Define historical interval (last 3 days)
     now = datetime.now()

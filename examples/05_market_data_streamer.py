@@ -89,8 +89,8 @@ def main() -> int:
         logger.error("Missing credentials. Please set PROFITDLL_ACTIVATION_KEY, PROFITDLL_USER, and PROFITDLL_PASSWORD in .env")
         return 2
 
-    ticker = os.environ.get("STREAM_TICKER", "WINFUT")
-    exchange = os.environ.get("STREAM_EXCHANGE", "F")
+    ticker = os.environ.get("STREAM_TICKER", "PETR4")
+    exchange = os.environ.get("STREAM_EXCHANGE", "B")
 
     collector = MarketDataCollector(output_dir=Path("./market_data_output"))
 

@@ -62,7 +62,7 @@ TConnectorTradeCallback = WINFUNCTYPE(None, TConnectorAssetIdentifierSafe, c_siz
 THistoryTradeCallback = TConnectorTradeCallback
 
 # Price Depth Callback (v4.0.0.31): (asset_id, side, position, update_type) -> None.
-# Pure Enqueue Rule: This callback only queues lightweight positional events.
+# Carries no level data; the handler reads levels via the GetPriceGroup accessor.
 TPriceDepthCallback = WINFUNCTYPE(
     None,
     TConnectorAssetIdentifier,

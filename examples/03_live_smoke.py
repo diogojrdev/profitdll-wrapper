@@ -41,8 +41,8 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Live smoke test for profitdll-wrapper against native DLL.")
     p.add_argument("--duration", type=float, default=20.0, help="Collection duration in seconds (default: 20.0).")
     p.add_argument("--depth", action="store_true", help="Validate P1 price book depth events as well.")
-    p.add_argument("--ticker", default="WDOFUT", help="Asset ticker symbol (default: WDOFUT).")
-    p.add_argument("--exchange", default="F", help="Exchange code (default: F for BMF).")
+    p.add_argument("--ticker", default="PETR4", help="Asset ticker symbol (default: PETR4).")
+    p.add_argument("--exchange", default="B", help="Exchange code (default: B for Bovespa).")
     p.add_argument("--connect-timeout", type=float, default=30.0, help="Connection wait timeout in seconds.")
     return p.parse_args()
 

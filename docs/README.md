@@ -22,7 +22,7 @@ The native DLL is low-level and demanding for standard Python development:
 
 1. **Idiomatic** — Uses context managers (`with`), dataclasses, strict `Enum` types, and comprehensive type annotations. Raw `ctypes` objects are strictly encapsulated.
 2. **Safe by Default** — Automated C memory management; callbacks safely marshalled to caller threads via thread-safe queues; error codes (`NL_*`) converted to typed Python exceptions.
-3. **Pure Enqueue Architecture** — Native callbacks execute zero reentrant Python/ctypes logic, preventing GIL deadlocks under intense market data throughput.
+3. **Pure Enqueue Architecture** — Native callbacks never issue reentrant requests: they copy data via synchronous accessors and enqueue it, preventing GIL deadlocks under intense market data throughput.
 4. **Fault Isolation** — User exceptions inside event handlers are caught and logged, ensuring callback failures never crash native DLL threads.
 
 ---

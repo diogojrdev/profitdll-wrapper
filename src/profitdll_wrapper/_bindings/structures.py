@@ -13,7 +13,6 @@ from ctypes import (
     c_double,
     c_int,
     c_int64,
-    c_long,
     c_longlong,
     c_ubyte,
     c_uint,
@@ -97,8 +96,8 @@ class TConnectorPriceGroup(Structure):
     _fields_ = [
         ("Version", c_ubyte),
         ("Price", c_double),
-        ("Count", c_uint),
-        ("Quantity", c_long),
+        ("Count", c_int64),
+        ("Quantity", c_int64),
         ("PriceGroupFlags", c_uint),
     ]
 

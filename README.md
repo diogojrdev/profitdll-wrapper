@@ -164,7 +164,7 @@ with ProfitClient(
 
 ## Practical Examples
 
-Explore the [`examples/`](examples/) directory — nine ready-to-run scripts, from market data streaming to trading bots:
+Explore the [`examples/`](examples/) directory — eleven ready-to-run scripts, from market data streaming to trading bots:
 
 | Script | Category | Description | Mode |
 |---|---|---|---|
@@ -177,6 +177,8 @@ Explore the [`examples/`](examples/) directory — nine ready-to-run scripts, fr
 | [`07_watchdog_and_reconciliation.py`](examples/07_watchdog_and_reconciliation.py) | Infra / Reconciliation | DLL health watchdog, auto-reconnect, daily position reconciliation | `routing` |
 | [`08_corporate_actions_and_history.py`](examples/08_corporate_actions_and_history.py) | History & Corporate Actions | Tick-by-tick history download and corporate actions | `market_data` |
 | [`09_historical_to_database.py`](examples/09_historical_to_database.py) | History → Database | Historical trades to SQLite via the `ingest` subpackage | `market_data` |
+| [`10_times_and_trades_tui.py`](examples/10_times_and_trades_tui.py) | TUI / Market Data | Native-style Times & Trades: summary bar, mirrored buyer/seller tape, quantity bars and pressure gauge (`rich`, `--demo` anywhere) | `market_data` |
+| [`11_order_book_tui.py`](examples/11_order_book_tui.py) | TUI / Market Data | Full Level-2 DOM with native summary bar, mirrored bid/ask sides and proportional quantity bars (`rich`, `--demo` anywhere) | `market_data` |
 
 ---
 

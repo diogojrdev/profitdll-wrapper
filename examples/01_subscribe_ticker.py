@@ -33,8 +33,8 @@ def main() -> int:
         )
         return 2
 
-    ticker = "WDOFUT"
-    exchange = "F"  # BMF (Derivatives)
+    ticker = "PETR4"
+    exchange = "B"  # Bovespa (B3 equities)
 
     try:
         with ProfitClient(

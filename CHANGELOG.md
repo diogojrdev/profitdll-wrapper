@@ -7,10 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-25
+
 ### Added
 
+- Two `rich`-based TUI examples replicating Profit's native windows, each with
+  the full native-style summary bar (Last, Change, Time, Volume, Trades,
+  High/Low, Open, Close, Bid/Ask): `10_times_and_trades_tui.py`
+  (trade tape with native column order, aggressor-side highlighting,
+  proportional quantity bars and a buy/sell aggression pressure gauge) and
+  `11_order_book_tui.py` (full L2 DOM with mirrored bid/ask sides,
+  spread indicator and top-of-book highlight). Both accept a `--demo` / `--mock` synthetic feed that runs
+  without the DLL, credentials, or Windows, and are installed via the new
+  `tui` optional extra (`uv sync --extra tui`).
 - Portuguese (pt-BR) README (`README.pt-BR.md`) with a language selector in both
-  READMEs; the examples section now lists all nine `examples/` scripts; new
+  READMEs; the examples section now lists all eleven `examples/` scripts; new
   "Feedback" section linking to the issue chooser.
 - GitHub issue templates (bug report, feature request) and issue-chooser contact
   links (docs site, PyPI, security policy).
@@ -43,6 +54,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Price depth events now carry real book data: `TConnectorPriceGroup.Count`
+  and `Quantity` were widened to 64-bit (`c_int64`) to match the DLL's Delphi
+  x64 layout — previously `count`/`quantity` decoded as `0` because the
+  32-bit field reads landed on inter-field padding.
+- The price-depth callback now reads levels via `GetPriceGroup` instead of
+  enqueueing placeholders: `PRICE_LEVEL` events carry price/count/quantity
+  (plus the theoretical flag) and `PRICE_SNAPSHOT` events carry a populated
+  book (bounded at 50 levels per side) instead of empty tuples. Delete and
+  rebuild update types remain positional-only, without querying the DLL.
 - `docs/README.md` linked the repository-root README via `../README.md`, which
   broke `mkdocs build --strict` (target outside `docs_dir`); it now links to the
   GitHub README URL instead.

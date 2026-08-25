@@ -239,6 +239,34 @@ class TestPriceDepthCallback:
         assert lvl.side is BookSide.BUY
         assert lvl.update_type is BookUpdateType.EDIT
 
+    def test_edit_update_accessor_failure_falls_back_to_zeros(
+        self, fake_backend: FakeProfitBackend
+    ) -> None:
+        client = _client(fake_backend)
+        client.connect(timeout=2.0)
+
+        received: list[PriceLevel] = []
+        ready = threading.Event()
+
+        @client.on(Event.PRICE_LEVEL)
+        def on_level(level: PriceLevel) -> None:
+            received.append(level)
+            ready.set()
+
+        fake_backend.get_price_group_result = int(NLCode.NOT_FOUND)
+
+        asset = self._make_asset()
+        client._dispatcher.start()
+        fake_backend.price_depth_callback(asset, int(BookSide.BUY), 0, int(BookUpdateType.EDIT))
+
+        assert ready.wait(timeout=2.0)
+        client.stop()
+
+        lvl = received[0]
+        assert lvl.update_type is BookUpdateType.EDIT
+        assert lvl.price == 0.0
+        assert lvl.quantity == 0
+
     def test_public_get_price_group(self, fake_backend: FakeProfitBackend) -> None:
         client = _client(fake_backend)
         client.connect(timeout=2.0)
@@ -269,6 +297,13 @@ class TestPriceDepthCallback:
             received.append(level)
             ready.set()
 
+        # Um nível existe na posição 2: se o handler consultasse a DLL para
+        # DELETE, o preço viria preenchido — o contrato é não consultar.
+        group = TConnectorPriceGroup()
+        group.Version = 0
+        group.Price = 28.50
+        fake_backend.queue_price_group("PETR4", int(BookSide.BUY), 2, group)
+
         asset = self._make_asset()
         client._dispatcher.start()
         fake_backend.price_depth_callback(asset, int(BookSide.BUY), 2, int(BookUpdateType.DELETE))
@@ -279,6 +314,122 @@ class TestPriceDepthCallback:
         assert received[0].update_type is BookUpdateType.DELETE
         assert received[0].position == 2
         assert received[0].price == 0.0
+
+    def test_edit_update_reads_price_group(self, fake_backend: FakeProfitBackend) -> None:
+        client = _client(fake_backend)
+        client.connect(timeout=2.0)
+
+        received: list[PriceLevel] = []
+        ready = threading.Event()
+
+        @client.on(Event.PRICE_LEVEL)
+        def on_level(level: PriceLevel) -> None:
+            received.append(level)
+            ready.set()
+
+        group = TConnectorPriceGroup()
+        group.Version = 0
+        group.Price = 28.50
+        group.Count = 5
+        group.Quantity = 1000
+        group.PriceGroupFlags = PG_IS_THEORIC
+        fake_backend.queue_price_group("PETR4", int(BookSide.BUY), 0, group)
+
+        asset = self._make_asset()
+        client._dispatcher.start()
+        fake_backend.price_depth_callback(asset, int(BookSide.BUY), 0, int(BookUpdateType.EDIT))
+
+        assert ready.wait(timeout=2.0)
+        client.stop()
+
+        lvl = received[0]
+        assert lvl.price == 28.50
+        assert lvl.count == 5
+        assert lvl.quantity == 1000
+        assert lvl.is_theoretical is True
+
+    def test_full_book_snapshot_reads_levels(self, fake_backend: FakeProfitBackend) -> None:
+        client = _client(fake_backend)
+        client.connect(timeout=2.0)
+
+        received: list[PriceBookSnapshot] = []
+        ready = threading.Event()
+
+        @client.on(Event.PRICE_SNAPSHOT)
+        def on_snapshot(snap: PriceBookSnapshot) -> None:
+            received.append(snap)
+            ready.set()
+
+        for pos, price in enumerate((37.10, 37.09, 37.05)):
+            group = TConnectorPriceGroup()
+            group.Version = 0
+            group.Price = price
+            group.Count = pos + 1
+            group.Quantity = (pos + 1) * 100
+            fake_backend.queue_price_group("PETR4", int(BookSide.BUY), pos, group)
+
+        sell = TConnectorPriceGroup()
+        sell.Version = 0
+        sell.Price = 37.20
+        sell.Count = 1
+        sell.Quantity = 500
+        sell.PriceGroupFlags = PG_IS_THEORIC
+        fake_backend.queue_price_group("PETR4", int(BookSide.SELL), 0, sell)
+
+        fake_backend.set_price_side_count("PETR4", int(BookSide.BUY), 3)
+        fake_backend.set_price_side_count("PETR4", int(BookSide.SELL), 1)
+
+        asset = self._make_asset()
+        client._dispatcher.start()
+        fake_backend.price_depth_callback(
+            asset, int(BookSide.BUY), 0, int(BookUpdateType.FULL_BOOK)
+        )
+
+        assert ready.wait(timeout=2.0)
+        client.stop()
+
+        snap = received[0]
+        assert [lvl.price for lvl in snap.buy_levels] == [37.10, 37.09, 37.05]
+        assert [lvl.position for lvl in snap.buy_levels] == [0, 1, 2]
+        assert all(lvl.side is BookSide.BUY for lvl in snap.buy_levels)
+        assert all(lvl.update_type is BookUpdateType.FULL_BOOK for lvl in snap.buy_levels)
+        assert snap.buy_levels[0].count == 1
+        assert snap.buy_levels[0].quantity == 100
+
+        assert len(snap.sell_levels) == 1
+        sell_lvl = snap.sell_levels[0]
+        assert sell_lvl.price == 37.20
+        assert sell_lvl.side is BookSide.SELL
+        assert sell_lvl.quantity == 500
+        assert sell_lvl.is_theoretical is True
+
+    def test_full_book_caps_levels_at_bound(self, fake_backend: FakeProfitBackend) -> None:
+        client = _client(fake_backend)
+        client.connect(timeout=2.0)
+
+        received: list[PriceBookSnapshot] = []
+        ready = threading.Event()
+
+        @client.on(Event.PRICE_SNAPSHOT)
+        def on_snapshot(snap: PriceBookSnapshot) -> None:
+            received.append(snap)
+            ready.set()
+
+        fake_backend.set_price_side_count("PETR4", int(BookSide.BUY), 60)
+        fake_backend.set_price_side_count("PETR4", int(BookSide.SELL), 0)
+
+        asset = self._make_asset()
+        client._dispatcher.start()
+        fake_backend.price_depth_callback(
+            asset, int(BookSide.BUY), 0, int(BookUpdateType.FULL_BOOK)
+        )
+
+        assert ready.wait(timeout=2.0)
+        client.stop()
+
+        snap = received[0]
+        assert len(snap.buy_levels) == 50
+        assert snap.sell_levels == ()
 
     def test_full_book_emits_snapshot(self, fake_backend: FakeProfitBackend) -> None:
         client = _client(fake_backend)

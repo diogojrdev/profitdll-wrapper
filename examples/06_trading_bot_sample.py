@@ -49,11 +49,11 @@ class BotState(Enum):
 
 @dataclass
 class BotConfig:
-    ticker: str = "WDOFUT"
-    exchange: str = "F"
-    quantity: int = 1
-    stop_loss_pts: float = 5.0
-    take_profit_pts: float = 10.0
+    ticker: str = "PETR4"
+    exchange: str = "B"  # Bovespa (B3 equities)
+    quantity: int = 100  # 1 standard lot of shares on B3
+    stop_loss_pts: float = 0.50
+    take_profit_pts: float = 1.00
     safe_test_mode: bool = True  # If True, places limit order far from market to avoid unintentional execution
 
 
@@ -133,10 +133,10 @@ class GridTradingBot:
 
     def _send_entry_order(self) -> None:
         cl_ord_id = f"BOT_{uuid.uuid4().hex[:8]}"
-        target_price = self.last_price - 20.0 if self.config.safe_test_mode else self.last_price
+        target_price = self.last_price * 0.90 if self.config.safe_test_mode else self.last_price
 
         logger.info(
-            "Submitting LIMIT BUY for %d contract(s) @ $ %.2f (cl_ord_id=%s)...",
+            "Submitting LIMIT BUY for %d share(s) @ $ %.2f (cl_ord_id=%s)...",
             self.config.quantity, target_price, cl_ord_id
         )
         try:
@@ -185,8 +185,8 @@ def main() -> int:
         return 2
 
     config = BotConfig(
-        ticker=os.environ.get("BOT_TICKER", "WDOFUT"),
-        exchange=os.environ.get("BOT_EXCHANGE", "F"),
+        ticker=os.environ.get("BOT_TICKER", "PETR4"),
+        exchange=os.environ.get("BOT_EXCHANGE", "B"),
         safe_test_mode=True,
     )
 

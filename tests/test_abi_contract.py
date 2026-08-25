@@ -13,7 +13,6 @@ from ctypes import (
     c_int,
     c_int32,
     c_int64,
-    c_long,
     c_longlong,
     c_size_t,
     c_ubyte,
@@ -21,6 +20,7 @@ from ctypes import (
     c_ushort,
     c_void_p,
     c_wchar_p,
+    sizeof,
 )
 from unittest.mock import MagicMock
 
@@ -111,12 +111,19 @@ class TestABIStructureLayouts:
         expected = [
             ("Version", c_ubyte),
             ("Price", c_double),
-            ("Count", c_uint),
-            ("Quantity", c_long),
+            ("Count", c_int64),
+            ("Quantity", c_int64),
             ("PriceGroupFlags", c_uint),
         ]
         actual = [(f[0], f[1]) for f in TConnectorPriceGroup._fields_]
         assert actual == expected
+
+    def test_tconnector_price_group_size(self) -> None:
+        # Layout Delphi x64: Count/Quantity são Int64 (8 bytes cada); com o
+        # alinhamento padrão a struct ocupa 40 bytes. Regredir esses campos
+        # para 32 bits leria o padding entre campos como dados (bug que zereava
+        # count/quantity nos eventos de price depth).
+        assert sizeof(TConnectorPriceGroup) == 40
 
     def test_tasset_id_legacy_fields_and_types(self) -> None:
         expected = [

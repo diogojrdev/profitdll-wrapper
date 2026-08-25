@@ -17,6 +17,8 @@ This directory contains quick-reference guides and ready-to-run Python scripts d
 | [`07_watchdog_and_reconciliation.py`](07_watchdog_and_reconciliation.py) | **Infra / Reconciliation** | DLL process health monitoring (`get_health_status`), auto-reconnection, and daily position reconciliation. | `routing` |
 | [`08_corporate_actions_and_history.py`](08_corporate_actions_and_history.py) | **History & Adjustments** | Tick-by-tick trade history download (`get_history_trades`) and corporate actions (`subscribe_adjust_history`). | `market_data` |
 | [`09_historical_to_database.py`](09_historical_to_database.py) | **History → Database** | Persisting historical trades to a SQLite database via the `ingest` subpackage (programmatic API behind the `profitdll-ingest` CLI). | `market_data` |
+| [`10_times_and_trades_tui.py`](10_times_and_trades_tui.py) | **TUI / Market Data** | Rich Times & Trades with a native-style summary bar (Last/Change/High/Low/Open/Close/Bid), mirrored buyer → seller tape with aggressor-side highlighting, quantity bars and a buy/sell aggression pressure gauge. `--demo` runs anywhere without the DLL. | `market_data` |
+| [`11_order_book_tui.py`](11_order_book_tui.py) | **TUI / Market Data** | Rich full Level-2 DOM: native-style summary bar, mirrored bid/ask sides (Time \| Broker \| Qty \| Price), spread (R$ / bps), proportional quantity bars and side totals. `--demo` runs anywhere without the DLL. | `market_data` |
 
 ---
 
@@ -50,7 +52,17 @@ uv run python examples/08_corporate_actions_and_history.py
 
 # Example 09: Historical trades to a SQLite database
 uv run python examples/09_historical_to_database.py
+
+# Example 10: Times & Trades TUI (requires the 'tui' extra; --demo works on any OS)
+uv run --extra tui python examples/10_times_and_trades_tui.py --demo
+
+# Example 11: Full order book (DOM) TUI (requires the 'tui' extra; --demo works on any OS)
+uv run --extra tui python examples/11_order_book_tui.py --demo
 ```
+
+> **Note**: Examples 10 and 11 render with [`rich`](https://rich.readthedocs.io/) — install it
+> with `uv sync --extra tui` (or pass `--extra tui` to `uv run`). Their `--demo` / `--mock`
+> flag drives a synthetic feed, so no ProfitDLL binary, credentials, or Windows OS is needed.
 
 > **Note**: Even outside market hours, examples execute safely, reading closing prices, asset info, and awaiting events without throwing unexpected errors.
 

@@ -57,7 +57,10 @@ dependencies = []
 [project.optional-dependencies]
 postgres = ["psycopg[binary]>=3.2,<4"]
 parquet = ["duckdb>=1.1"]
-all = ["profitdll-wrapper[postgres,parquet]"]
+# Rich TUIs for the market-data examples (10_times_and_trades_tui, 11_order_book_tui).
+# Install with:  uv sync --extra tui
+tui = ["rich>=13.7"]
+all = ["profitdll-wrapper[postgres,parquet,tui]"]
 
 # Console entry point for historical data ingestion.
 [project.scripts]

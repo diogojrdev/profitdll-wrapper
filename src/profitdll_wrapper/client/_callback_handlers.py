@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Final
 
 from profitdll_wrapper._bindings.callbacks import TC_IS_EDIT
 from profitdll_wrapper._bindings.enums import (
@@ -23,11 +23,13 @@ from profitdll_wrapper._bindings.enums import (
 )
 from profitdll_wrapper._bindings.errors import NLCode
 from profitdll_wrapper._bindings.structures import (
+    PG_IS_THEORIC,
     TAssetID,
     TConnectorAccountIdentifier,
     TConnectorAssetIdentifier,
     TConnectorOrderIdentifier,
     TConnectorOrderOut,
+    TConnectorPriceGroup,
     TConnectorTrade,
 )
 from profitdll_wrapper._types.book import PriceBookSnapshot, PriceLevel
@@ -55,6 +57,22 @@ _BUFFER_SLACK_BYTES = 100
 
 # Retry budget for GetOrderDetails when the DLL reports a transient failure.
 _ORDER_DETAILS_RETRIES = 5
+
+# FULL_BOOK snapshots are read synchronously inside the ConnectorThread
+# callback; this bound keeps the GetPriceGroup read loop finite.
+_FULL_BOOK_MAX_LEVELS = 50
+
+# Update types whose level content can be read back via GetPriceGroup. Delete
+# and rebuild markers (DELETE, DELETE_FROM, PREPARE, FLUSH) are emitted as
+# positional events without querying the DLL — the level no longer exists.
+_PRICE_READABLE_UPDATES: Final[frozenset[BookUpdateType]] = frozenset(
+    {
+        BookUpdateType.ADD,
+        BookUpdateType.EDIT,
+        BookUpdateType.INSERT,
+        BookUpdateType.THEORIC_PRICE,
+    }
+)
 
 
 def _descript_offer_array_v2(offer_array_ptr: Any) -> list[tuple[float, int, int, int, str]]:
@@ -284,6 +302,62 @@ class _ClientCallbackMixin(_ClientBase):
         except Exception:
             logger.exception("Error in trade callback")
 
+    def _read_price_level(
+        self,
+        asset: TConnectorAssetIdentifier,
+        asset_id: AssetId,
+        side: int,
+        position: int,
+        update_type: BookUpdateType,
+    ) -> PriceLevel | None:
+        """Reads a single book level via GetPriceGroup; None on DLL failure."""
+        group = TConnectorPriceGroup()
+        group.Version = 0
+        code = self._backend.get_price_group(asset, side, position, group)
+        if code != int(NLCode.OK):
+            logger.warning(
+                "GetPriceGroup failed (code=%#x) for %s side=%s position=%d",
+                code,
+                asset_id.ticker,
+                side,
+                position,
+            )
+            return None
+        return PriceLevel(
+            asset=asset_id,
+            side=BookSide(side),
+            update_type=update_type,
+            position=position,
+            price=float(group.Price),
+            count=int(group.Count),
+            quantity=int(group.Quantity),
+            is_theoretical=bool(group.PriceGroupFlags & PG_IS_THEORIC),
+        )
+
+    def _read_full_book_side(
+        self,
+        asset: TConnectorAssetIdentifier,
+        asset_id: AssetId,
+        side: BookSide,
+    ) -> list[PriceLevel]:
+        """Reads all levels of one book side, bounded by _FULL_BOOK_MAX_LEVELS."""
+        side_val = int(side)
+        count = max(int(self._backend.get_price_depth_side_count(asset, side_val)), 0)
+        if count > _FULL_BOOK_MAX_LEVELS:
+            logger.debug(
+                "PriceDepth FULL_BOOK: truncating %s %s from %d to %d levels",
+                asset_id.ticker,
+                side.name,
+                count,
+                _FULL_BOOK_MAX_LEVELS,
+            )
+        levels: list[PriceLevel] = []
+        for pos in range(min(count, _FULL_BOOK_MAX_LEVELS)):
+            level = self._read_price_level(asset, asset_id, side_val, pos, BookUpdateType.FULL_BOOK)
+            if level is not None:
+                levels.append(level)
+        return levels
+
     def _on_price_depth(
         self,
         asset: TConnectorAssetIdentifier,
@@ -291,7 +365,7 @@ class _ClientCallbackMixin(_ClientBase):
         position: int,
         update_type: int,
     ) -> None:
-        """Thin price-depth callback: copies data (synchronous) and enqueues (Pure Enqueue)."""
+        """Thin price-depth callback: reads levels via GetPriceGroup and enqueues."""
         try:
             asset_id = AssetId.from_native(asset)
             try:
@@ -302,19 +376,31 @@ class _ClientCallbackMixin(_ClientBase):
                 return
 
             if ut is BookUpdateType.FULL_BOOK:
-                snapshot = PriceBookSnapshot(asset=asset_id, buy_levels=(), sell_levels=())
+                snapshot = PriceBookSnapshot(
+                    asset=asset_id,
+                    buy_levels=tuple(self._read_full_book_side(asset, asset_id, BookSide.BUY)),
+                    sell_levels=tuple(self._read_full_book_side(asset, asset_id, BookSide.SELL)),
+                )
                 self._dispatcher.enqueue_price_snapshot(snapshot)
                 return
 
-            level = PriceLevel(
-                asset=asset_id,
-                side=side_e,
-                update_type=ut,
-                position=position,
-                price=0.0,
-                count=0,
-                quantity=0,
-            )
+            level: PriceLevel | None = None
+            if (
+                ut in _PRICE_READABLE_UPDATES
+                and position >= 0
+                and side_e in (BookSide.BUY, BookSide.SELL)
+            ):
+                level = self._read_price_level(asset, asset_id, side, position, ut)
+            if level is None:
+                level = PriceLevel(
+                    asset=asset_id,
+                    side=side_e,
+                    update_type=ut,
+                    position=position,
+                    price=0.0,
+                    count=0,
+                    quantity=0,
+                )
             self._dispatcher.enqueue_price_level(level)
         except Exception:
             logger.exception("Error in price depth callback")

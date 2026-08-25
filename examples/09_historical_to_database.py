@@ -12,8 +12,8 @@ Execution:
     uv run python examples/09_historical_to_database.py
 
 Environment overrides:
-    HIST_TICKER     default WINFUT
-    HIST_EXCHANGE   default F
+    HIST_TICKER     default PETR4
+    HIST_EXCHANGE   default B
     HIST_DB         default ./data/example_history.db
     CI_TIMEOUT      optional seconds before auto-stop (CI / smoke runs)
 """
@@ -44,8 +44,8 @@ def main() -> int:
         )
         return 2
 
-    ticker = os.environ.get("HIST_TICKER", "WINFUT")
-    exchange = os.environ.get("HIST_EXCHANGE", "F")
+    ticker = os.environ.get("HIST_TICKER", "PETR4")
+    exchange = os.environ.get("HIST_EXCHANGE", "B")
     db_path = Path(os.environ.get("HIST_DB", "./data/example_history.db"))
     db_path.parent.mkdir(parents=True, exist_ok=True)
 

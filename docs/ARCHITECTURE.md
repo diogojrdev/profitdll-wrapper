@@ -132,8 +132,8 @@ TOfferBookCallback ┘                                          4. Fault-isolate
 ```
 
 **Architectural Invariants:**
-1. C callback handlers (`CFUNCTYPE`, stdcall) perform **minimal work**: copy fields to immutable dataclasses and push to thread-safe `queue.Queue`. `ConnectorThread` never blocks.
-2. Mandatory accessors (`TranslateTrade` for V2 trade structures) run **inside** the callback before enqueuing because native pointers are only valid for callback duration.
+1. C callback handlers (`CFUNCTYPE`, stdcall) perform **minimal work**: copy fields to immutable dataclasses and push to thread-safe `queue.Queue`. `ConnectorThread` never blocks. (Price-depth `FULL_BOOK` snapshots read at most `_FULL_BOOK_MAX_LEVELS` levels per side so the synchronous read loop stays bounded.)
+2. Synchronous accessors run **inside** the callback before enqueuing: `TranslateTrade` for V2 trades (native pointers are only valid for the callback duration) and `GetPriceGroup` for price-depth levels (the callback payload carries no level data).
 3. A background dispatcher thread drains the queue and executes user-registered event handlers. Here, application code can safely make API requests, write to database, or call logging — completely detached from native DLL threads.
 4. Unhandled exceptions inside user callbacks are caught and logged; they **never** bubble up to native C stack frames.
 

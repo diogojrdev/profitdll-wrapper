@@ -925,12 +925,16 @@ source = { editable = "." }
 all = [
     { name = "duckdb" },
     { name = "psycopg", extra = ["binary"] },
+    { name = "rich" },
 ]
 parquet = [
     { name = "duckdb" },
 ]
 postgres = [
     { name = "psycopg", extra = ["binary"] },
+]
+tui = [
+    { name = "rich" },
 ]
 
 [package.dev-dependencies]
@@ -955,8 +959,10 @@ requires-dist = [
     { name = "duckdb", marker = "extra == 'parquet'", specifier = ">=1.1" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'all'", specifier = ">=3.2,<4" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.2,<4" },
+    { name = "rich", marker = "extra == 'all'", specifier = ">=13.7" },
+    { name = "rich", marker = "extra == 'tui'", specifier = ">=13.7" },
 ]
-provides-extras = ["all", "parquet", "postgres"]
+provides-extras = ["all", "parquet", "postgres", "tui"]
 
 [package.metadata.requires-dev]
 dev = [
