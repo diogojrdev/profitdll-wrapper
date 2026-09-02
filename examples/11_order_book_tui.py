@@ -9,13 +9,19 @@ bars behind each quantity, a spread indicator (R$ and bps) and side totals
 (Bids Total / Asks Total).
 
 Live mode subscribes to the aggregated price depth feed
-(`subscribe_price_depth`) for the book and to the trade feed (`subscribe`)
-for the summary bar; session stats (High/Low/Open) are measured from the
-first observed trade onwards (the wrapper exposes no daily OHLC query). The
-public `PriceLevel` events carry the number of orders per level but no
-per-broker tags (the wrapper does not expose the offer-book broker codes
-yet), so the Broker column shows the order count per level in live mode;
-`--demo` renders synthetic broker names instead.
+(`subscribe_price_depth`) for the book, to the trade feed (`subscribe`) and
+to the official daily candle (`Event.DAILY`) for the summary bar: session
+aggregates (Volume/Trades/High/Low/Open) prefer the daily candle, falling
+back to measurements from the first observed trade onwards while no candle
+has arrived. The DLL keeps one price group per price, so the local book is
+price-keyed: incremental updates for a known price refresh it in place, and
+a reconciliation thread re-reads the DLL book whenever the level count
+drifts (snapshot events are capped at 50 levels per side by the wrapper,
+while the DLL exposes the full depth). The public `PriceLevel` events carry
+the number of orders per level but no per-broker tags (the wrapper does not
+expose the offer-book broker codes yet), so the Broker column shows the
+order count per level in live mode; `--demo` renders synthetic broker names
+instead.
 
 Thread model: ProfitDLL callbacks arrive on the wrapper's dispatcher thread;
 handlers only mutate a lock-guarded book state, while the main thread owns
@@ -43,6 +49,7 @@ import random
 import sys
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 
@@ -51,6 +58,7 @@ from profitdll_wrapper import (
     AssetId,
     BookSide,
     BookUpdateType,
+    DailyCandle,
     Event,
     PriceBookSnapshot,
     PriceLevel,
@@ -119,7 +127,9 @@ def fmt_qty_compact(value: int) -> str:
 
 
 def fmt_volume_human(value: float) -> str:
-    """Human-friendly financial volume (``19,97M``, ``842K``)."""
+    """Human-friendly financial volume (``3,55B``, ``19,97M``, ``842K``)."""
+    if value >= 1_000_000_000:
+        return fmt_decimal(value / 1_000_000_000) + "B"
     if value >= 1_000_000:
         return fmt_decimal(value / 1_000_000) + "M"
     if value >= 1_000:
@@ -174,6 +184,18 @@ class BookState:
             self._bids = list(bids)
             self._asks = list(asks)
 
+    def replace_side(self, rows: list[BookRow], side: BookSide) -> None:
+        """Replaces one side wholesale (live-mode reconciliation path)."""
+        with self._lock:
+            if side == BookSide.BUY:
+                self._bids = list(rows)
+            else:
+                self._asks = list(rows)
+
+    def level_count(self, side: BookSide) -> int:
+        with self._lock:
+            return len(self._bids if side == BookSide.BUY else self._asks)
+
     def apply_level(self, level: PriceLevel, *, broker: str | None = None) -> None:
         if level.is_theoretical:
             return
@@ -181,10 +203,22 @@ class BookState:
         row = BookRow(level.price, level.quantity, level.count, broker, datetime.now())
         pos = max(level.position, 0)
         with self._lock:
+            # The DLL keeps one price group per price, so an update for a
+            # known price refreshes it in place instead of adding a row.
+            existing = (
+                next((i for i, r in enumerate(rows) if r.price == level.price), None)
+                if level.price > 0
+                else None
+            )
             if level.update_type in (BookUpdateType.ADD, BookUpdateType.INSERT):
-                rows.insert(min(pos, len(rows)), row)
+                if existing is not None:
+                    rows[existing] = row
+                else:
+                    rows.insert(min(pos, len(rows)), row)
             elif level.update_type == BookUpdateType.EDIT:
-                if pos < len(rows):
+                if existing is not None:
+                    rows[existing] = row
+                elif pos < len(rows):
                     rows[pos] = row
                 else:
                     rows.append(row)
@@ -199,7 +233,21 @@ class BookState:
         with self._lock:
             bids = sorted(self._bids, key=lambda r: r.price, reverse=True)
             asks = sorted(self._asks, key=lambda r: r.price)
-            return bids, asks
+        return self._collapse(bids), self._collapse(asks)
+
+    @staticmethod
+    def _collapse(rows: list[BookRow]) -> list[BookRow]:
+        """Merges residual same-price rows (defensive; the DLL emits one group per price)."""
+        merged: dict[float, BookRow] = {}
+        for row in rows:
+            if row.price in merged:
+                prev = merged[row.price]
+                merged[row.price] = replace(
+                    prev, quantity=prev.quantity + row.quantity, count=prev.count + row.count
+                )
+            else:
+                merged[row.price] = row
+        return list(merged.values())
 
 
 @dataclass(frozen=True)
@@ -219,10 +267,13 @@ class MarketSnapshot:
 class MarketStats:
     """Thread-safe session statistics fed by the trade feed (summary bar).
 
-    The wrapper exposes no daily OHLC query, so Abertura/Máx/Mín are measured
-    from the first trade observed after subscribing. ``ingest`` runs on the
-    dispatcher thread (live) or on the demo feed thread; ``snapshot`` runs on
-    the main rendering thread.
+    Session aggregates (Volume/Trades/High/Low/Open) prefer the official
+    daily candle pushed by the DLL (`Event.DAILY`); while none has arrived
+    they are measured from the first trade observed after subscribing. Last
+    and Time always follow the latest trade, falling back to the daily close
+    while the trade feed is silent (e.g. closed market). ``ingest`` and
+    ``apply_daily`` run on the dispatcher thread (live) or on the demo feed
+    thread; ``snapshot`` runs on the main rendering thread.
     """
 
     def __init__(self) -> None:
@@ -235,10 +286,15 @@ class MarketStats:
         self._min_price: float | None = None
         self._open_price: float | None = None
         self._prev_close: float | None = None
+        self._daily: DailyCandle | None = None
 
     def set_prev_close(self, close: float | None) -> None:
         with self._lock:
             self._prev_close = close if close and close > 0 else None
+
+    def apply_daily(self, candle: DailyCandle) -> None:
+        with self._lock:
+            self._daily = candle
 
     def ingest(self, trade: Trade) -> None:
         with self._lock:
@@ -257,14 +313,18 @@ class MarketStats:
 
     def snapshot(self) -> MarketSnapshot:
         with self._lock:
+            daily = self._daily
+            last_price = self._last_price
+            if last_price <= 0 and daily is not None:
+                last_price = daily.close  # official session last while no trade arrived
             return MarketSnapshot(
-                last_price=self._last_price,
+                last_price=last_price,
                 last_time=self._last_time,
-                total_volume=self._total_volume,
-                trade_count=self._trade_count,
-                max_price=self._max_price,
-                min_price=self._min_price,
-                open_price=self._open_price,
+                total_volume=daily.volume if daily is not None else self._total_volume,
+                trade_count=daily.trades if daily is not None else self._trade_count,
+                max_price=daily.high if daily is not None and daily.high > 0 else self._max_price,
+                min_price=daily.low if daily is not None and daily.low > 0 else self._min_price,
+                open_price=daily.open if daily is not None and daily.open > 0 else self._open_price,
                 prev_close=self._prev_close,
             )
 
@@ -460,12 +520,20 @@ def run_render_loop(
     ticker: str,
     exchange: str,
     demo: bool,
+    reconciler: Callable[[], None] | None = None,
 ) -> None:
     """Owns the main thread: rebuilds the layout at ~4 fps until Ctrl+C."""
     with Live(screen=True, refresh_per_second=4) as live:
         live.update(build_layout(state, stats, ticker, exchange, demo))
+        next_reconcile = time.monotonic() + 2.0
         while True:
             time.sleep(0.25)
+            if reconciler is not None and time.monotonic() >= next_reconcile:
+                try:
+                    reconciler()
+                except Exception:
+                    pass  # best-effort healing; the next cycle retries
+                next_reconcile = time.monotonic() + 5.0
             live.update(build_layout(state, stats, ticker, exchange, demo))
 
 
@@ -610,9 +678,40 @@ def run_demo(args: argparse.Namespace, state: BookState, stats: MarketStats) -> 
     return 0
 
 
+def build_reconciler(
+    client: ProfitClient,
+    ticker: str,
+    exchange: str,
+    state: BookState,
+) -> Callable[[], None]:
+    """Builds the live-mode book reconciler run periodically by the render loop.
+
+    Snapshot events are capped at 50 levels per side by the wrapper while the
+    DLL exposes the full depth, so the first pass expands the book; later
+    passes re-read the DLL book only when the local level count drifts,
+    healing positional mistakes caused by missed delete/update events.
+    """
+
+    def reconcile() -> None:
+        for side in (BookSide.BUY, BookSide.SELL):
+            count = client.get_price_depth_side_count(ticker, side, exchange=exchange)
+            if state.level_count(side) == count:
+                continue
+            now = datetime.now()
+            rows = []
+            for position in range(count):
+                level = client.get_price_group(ticker, side, position, exchange=exchange)
+                if level.is_theoretical or level.price <= 0:
+                    continue
+                rows.append(BookRow(level.price, level.quantity, level.count, None, now))
+            state.replace_side(rows, side)
+
+    return reconcile
+
+
 def run_live(args: argparse.Namespace, state: BookState, stats: MarketStats) -> int:
     setup_dll_path()
-    activation_key, user, password, _ = load_credentials()
+    activation_key, user, password, _, _ = load_credentials()
     activation_key = args.activation_key or activation_key
     user = args.user or user
     password = args.password or password
@@ -657,8 +756,19 @@ def run_live(args: argparse.Namespace, state: BookState, stats: MarketStats) -> 
             def on_trade(trade: Trade) -> None:
                 stats.ingest(trade)
 
+            @client.on(Event.DAILY)
+            def on_daily(candle: DailyCandle) -> None:
+                stats.apply_daily(candle)  # official session stats for the summary bar
+
             try:
-                run_render_loop(state, stats, args.ticker, args.exchange, demo=False)
+                run_render_loop(
+                    state,
+                    stats,
+                    args.ticker,
+                    args.exchange,
+                    demo=False,
+                    reconciler=build_reconciler(client, args.ticker, args.exchange, state),
+                )
             finally:
                 for unsubscribe in (
                     client.unsubscribe_price_depth,

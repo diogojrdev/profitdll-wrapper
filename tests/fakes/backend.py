@@ -42,6 +42,11 @@ class FakeProfitBackend:
         self.zeroed_positions: list[tuple[str, str, str, float, int]] = []
         self.cancelled_all_ticker: list[tuple[str, str]] = []
         self.cancelled_all_account: list[str] = []
+        # Espelho completo das chamadas de roteamento (senha/Version/StopPrice
+        # etc.) para asserções de regressão de ABI/credenciais.
+        self.routing_calls: list[dict[str, Any]] = []
+        # Ordens a enumerar em enumerate_all_orders (histórico de ordens).
+        self.mock_history_orders: list[Any] = []
         self.finalized: bool = False
         self.set_trade_cb_calls: int = 0
         self.set_price_depth_cb_calls: int = 0
@@ -311,6 +316,17 @@ class FakeProfitBackend:
                     int(order.Quantity),
                 )
             )
+            self.routing_calls.append(
+                {
+                    "method": "send_order",
+                    "password": str(order.Password or ""),
+                    "version": int(order.Version),
+                    "stop_price": float(order.StopPrice),
+                    "order_type": int(order.OrderType),
+                    "order_side": int(order.OrderSide),
+                    "message_id": int(order.MessageID),
+                }
+            )
         return int(NLCode.OK)
 
     def send_change_order_v2(self, change: Any) -> int:
@@ -322,11 +338,26 @@ class FakeProfitBackend:
             stop_price = float(change.StopPrice)
             quantity = int(change.Quantity)
             self.changed_orders.append((order_id, price, stop_price, quantity))
+            self.routing_calls.append(
+                {
+                    "method": "send_change_order_v2",
+                    "password": str(change.Password or ""),
+                    "version": int(change.Version),
+                    "stop_price": stop_price,
+                }
+            )
         return int(NLCode.OK)
 
     def send_cancel_order_v2(self, cancel: TConnectorCancelOrder) -> int:
         with self._lock:
             self.cancelled_orders.append(int(cancel.OrderID.LocalOrderID))
+            self.routing_calls.append(
+                {
+                    "method": "send_cancel_order_v2",
+                    "password": str(cancel.Password or ""),
+                    "version": int(cancel.Version),
+                }
+            )
         return int(NLCode.OK)
 
     def send_cancel_orders_v2(self, cancel: TConnectorCancelOrders) -> int:
@@ -334,11 +365,25 @@ class FakeProfitBackend:
             self.cancelled_all_ticker.append(
                 (str(cancel.AssetID.Ticker), str(cancel.AssetID.Exchange))
             )
+            self.routing_calls.append(
+                {
+                    "method": "send_cancel_orders_v2",
+                    "password": str(cancel.Password or ""),
+                    "version": int(cancel.Version),
+                }
+            )
         return int(NLCode.OK)
 
     def send_cancel_all_orders(self, cancel: TConnectorCancelAllOrders) -> int:
         with self._lock:
             self.cancelled_all_account.append(str(cancel.AccountID.AccountID))
+            self.routing_calls.append(
+                {
+                    "method": "send_cancel_all_orders",
+                    "password": str(cancel.Password or ""),
+                    "version": int(cancel.Version),
+                }
+            )
         return int(NLCode.OK)
 
     def send_zero_position_v2(self, zero: Any, out_id: Any) -> int:
@@ -353,6 +398,15 @@ class FakeProfitBackend:
             price = float(zero.Price)
             pos_type = int(zero.PositionType)
             self.zeroed_positions.append((ticker, exchange, account, price, pos_type))
+            self.routing_calls.append(
+                {
+                    "method": "send_zero_position_v2",
+                    "password": str(zero.Password or ""),
+                    "version": int(zero.Version),
+                    "price": price,
+                    "position_type": pos_type,
+                }
+            )
         return int(NLCode.OK)
 
     def get_position_v2(
@@ -539,6 +593,12 @@ class FakeProfitBackend:
     def enumerate_all_orders(
         self, account_id: Any, order_version: int, param: int, callback: object
     ) -> int:
+        from ctypes import pointer
+
+        with self._lock:
+            orders = list(self.mock_history_orders)
+        for order in orders:
+            callback(pointer(order), param)
         return int(NLCode.OK)
 
     def enumerate_all_position_assets(

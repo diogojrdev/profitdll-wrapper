@@ -48,6 +48,7 @@ class TestConnect:
             user="u",
             password="p",
             mode="routing",
+            routing_password="routing-pw",
             backend=backend,
         )
         client.connect(timeout=2.0)

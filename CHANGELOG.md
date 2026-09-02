@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Order routing used the login password instead of the routing password**
+  (critical incident): every order-routing call
+  (`send_*`, `cancel_*`, `change_order`, `zero_position`) sent the login
+  password where the manual requires the *plain text routing password*, so
+  the order server (Hades) dropped orders silently and repeated attempts
+  locked the account. `load_credentials()` now loads `routing_key`
+  (`PROFITDLL_ROUTING_KEY`/`ROUTING_KEY`), `ProfitClient` accepts
+  `routing_password=` (used as the default for all routing calls, still
+  overridable per call) and refuses to construct with `mode="routing"`
+  without it. Examples 04/06/07 pass the routing key explicitly and abort
+  when it is missing. The two credentials are never conflated: no code path
+  falls back to the login password as the routing password.
+- `StopPrice` is now `-1.0` for non-stop orders in `SendOrder` (manual:
+  "non-stop orders should be -1"; was `0.0`).
+- `TConnectorCancelOrder.Version`/`TConnectorChangeOrder.Version` set to `0`
+  (manual: "Supported: 0"; were `1` — correlates with the observed
+  `cancel_order` hang). `TConnectorZeroPosition.Version` set to `1`
+  (manual: "Supported: 0 .. 1"; was `2`).
+- `get_order_history()` now maps order statuses through the `OrderStatus`
+  enum (1=PartiallyFilled, 2=Filled, 4=Canceled, 8=Rejected); the previous
+  ad-hoc map reported wrong statuses.
+- Example `07_watchdog_and_reconciliation.py` had a `SyntaxError` (docstring
+  opening with `""`); example `06_trading_bot_sample.py` called a
+  non-existent `client.send_order()`.
+
+### Added
+
+- New dedicated example `12_list_accounts.py`: enumerates every trading
+  account (and sub-account) linked to the DLL login via `get_accounts()`,
+  printing owner, broker, decoded `AccountType` and account flags, retrying
+  briefly while the roster arrives from the routing server, and validating
+  the `.env` account against the roster. `AccountType` is now exported from
+  the package root.
+- `TradingMessageResultCode` (mrc codes) is now exported from the package and
+  documented with the order acceptance chain
+  (`SENT_TO_HADES_PROXY -> … -> ACCEPTED`); example `04_send_order.py`
+  prints it for every `TRADING_MESSAGE` event and validates the target
+  account against the DLL roster before sending.
+- `send_*` docstrings now state that the return value is the session-scoped
+  local order ID, not the permanent Profit order ID.
+
 ## [0.2.0] - 2026-08-25
 
 ### Added

@@ -59,8 +59,16 @@ class ProfitClient(
     Args:
         activation_key: Account activation key string.
         user: User username / email.
-        password: User password.
+        password: User password (login only — never used for order routing).
         mode: Operating mode ("market_data" or "routing"). Default: "market_data".
+        routing_password: Routing password required by every order-routing call
+            (``send_*``, ``cancel_*``, ``change_order``, ``zero_position``).
+            This is a credential distinct from the login ``password``: the
+            order server (Hades) validates it before forwarding orders to the
+            broker. Mandatory when ``mode="routing"`` — omitted, construction
+            fails instead of silently sending the login password and locking
+            the account. When provided, it becomes the default for all routing
+            calls; each call still accepts an explicit ``password=`` override.
         backend: Injectable Backend instance (for testing). Defaults to native loader.
         auto_resubscribe: Automatically re-establishes active market data subscriptions on reconnect.
         broker_id: Default broker ID for account-scoped calls (orders, positions,
@@ -76,12 +84,20 @@ class ProfitClient(
         user: str,
         password: str,
         mode: Mode = "market_data",
+        routing_password: str | None = None,
         backend: Backend | None = None,
         auto_resubscribe: bool = True,
         broker_id: int | None = None,
     ) -> None:
         if mode not in _STATES_BY_MODE:
             raise ValueError(f"mode must be 'market_data' or 'routing', got: {mode!r}")
+        if mode == "routing" and not routing_password:
+            raise ValueError(
+                "mode='routing' requires routing_password: the routing password "
+                "(ROUTING_KEY in .env) is validated by the order server on every "
+                "order and differs from the login password. Pass "
+                "routing_password=... to avoid silent rejections and account locks."
+            )
         self._mode: Mode = mode
         self._backend: Backend = backend if backend is not None else get_backend()
         self._dispatcher = EventDispatcher(self._backend)
@@ -89,6 +105,7 @@ class ProfitClient(
         self._activation_key = activation_key
         self._user = user
         self._password = password
+        self._routing_password = routing_password or ""
         self._auto_resubscribe = auto_resubscribe
         self._broker_id = broker_id if broker_id is not None else _broker_from_env()
 

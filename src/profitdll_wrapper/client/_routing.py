@@ -33,13 +33,34 @@ logger = logging.getLogger("profitdll_wrapper.client")
 class _ClientRoutingMixin(_ClientBase):
     """Mixin providing order routing, modification, and cancellation methods."""
 
+    def _resolve_routing_password(self, password: str | None) -> str:
+        """Resolves the routing password for an order-routing DLL call.
+
+        The DLL validates this password on the order server (Hades) before
+        forwarding anything to the broker — it is NOT the login password.
+        Precedence: explicit per-call argument, then the client-level
+        ``routing_password``. Raises ValueError when neither is available so a
+        login password is never silently reused (invalid routing attempts can
+        lock the account).
+        """
+        if password:
+            return password
+        if self._routing_password:
+            return self._routing_password
+        raise ValueError(
+            "routing password not set: pass password= to this call or "
+            "routing_password= to ProfitClient (ROUTING_KEY in .env). The routing "
+            "password differs from the login password; using the wrong one makes "
+            "the order server drop the order silently."
+        )
+
     def _build_send_order(
         self,
         *,
         ticker: str,
         exchange: str,
         account: str,
-        password: str,
+        password: str | None,
         order_type: OrderType,
         order_side: OrderSide,
         price: float,
@@ -58,11 +79,14 @@ class _ClientRoutingMixin(_ClientBase):
         order.Version = 1
         order.AccountID = build_account_id(account, broker_id)
         order.AssetID = build_asset_id(ticker, exchange)
-        order.Password = password
+        order.Password = self._resolve_routing_password(password)
         order.OrderType = int(order_type)
         order.OrderSide = int(order_side)
         order.Price = float(price)
-        order.StopPrice = 0.0
+        # Manual (SendOrder): "StopPrice — stop price, non-stop orders should
+        # be -1". The wrapper does not expose stop order placement yet, so
+        # every order sent here is non-stop.
+        order.StopPrice = -1.0
         order.Quantity = int(quantity)
         order.MessageID = -1
 
@@ -81,12 +105,17 @@ class _ClientRoutingMixin(_ClientBase):
         *,
         exchange: str,
         account: str,
-        password: str,
         price: float,
         quantity: int,
+        password: str | None = None,
         broker_id: int | None = None,
     ) -> int:
-        """Submits a limit buy order."""
+        """Submits a limit buy order.
+
+        Returns the **local order ID** (session-scoped identifier attributed
+        by the DLL), not the permanent Profit order ID. Track acceptance via
+        ``Event.TRADING_MESSAGE`` / ``Event.ORDER``.
+        """
         res: int = self._build_send_order(
             ticker=ticker,
             exchange=exchange,
@@ -106,12 +135,16 @@ class _ClientRoutingMixin(_ClientBase):
         *,
         exchange: str,
         account: str,
-        password: str,
         price: float,
         quantity: int,
+        password: str | None = None,
         broker_id: int | None = None,
     ) -> int:
-        """Submits a limit sell order."""
+        """Submits a limit sell order.
+
+        Returns the **local order ID** (session-scoped identifier attributed
+        by the DLL), not the permanent Profit order ID.
+        """
         res: int = self._build_send_order(
             ticker=ticker,
             exchange=exchange,
@@ -131,11 +164,15 @@ class _ClientRoutingMixin(_ClientBase):
         *,
         exchange: str,
         account: str,
-        password: str,
         quantity: int,
+        password: str | None = None,
         broker_id: int | None = None,
     ) -> int:
-        """Submits a market buy order."""
+        """Submits a market buy order.
+
+        Returns the **local order ID** (session-scoped identifier attributed
+        by the DLL), not the permanent Profit order ID.
+        """
         res: int = self._build_send_order(
             ticker=ticker,
             exchange=exchange,
@@ -155,11 +192,15 @@ class _ClientRoutingMixin(_ClientBase):
         *,
         exchange: str,
         account: str,
-        password: str,
         quantity: int,
+        password: str | None = None,
         broker_id: int | None = None,
     ) -> int:
-        """Submits a market sell order."""
+        """Submits a market sell order.
+
+        Returns the **local order ID** (session-scoped identifier attributed
+        by the DLL), not the permanent Profit order ID.
+        """
         res: int = self._build_send_order(
             ticker=ticker,
             exchange=exchange,
@@ -178,17 +219,18 @@ class _ClientRoutingMixin(_ClientBase):
         account: str,
         order_id: int,
         *,
-        password: str,
+        password: str | None = None,
         cl_ord_id: str = "",
         broker_id: int | None = None,
     ) -> None:
         """Cancels an active order by ID."""
         broker_id = self._resolve_broker_id(broker_id, account=account)
         cancel = TConnectorCancelOrder()
-        cancel.Version = 1
+        # Manual (SendCancelOrderV2): "Version — Supported: 0".
+        cancel.Version = 0
         cancel.AccountID = build_account_id(account, broker_id)
         cancel.OrderID = build_order_id(order_id, cl_ord_id)
-        cancel.Password = password
+        cancel.Password = self._resolve_routing_password(password)
         cancel.MessageID = -1
 
         code = self._backend.send_cancel_order_v2(cancel)
@@ -201,7 +243,7 @@ class _ClientRoutingMixin(_ClientBase):
         price: float,
         quantity: int,
         *,
-        password: str,
+        password: str | None = None,
         stop_price: float = 0.0,
         cl_ord_id: str = "",
         broker_id: int | None = None,
@@ -216,10 +258,11 @@ class _ClientRoutingMixin(_ClientBase):
             raise ValueError(f"stop_price cannot be negative, got: {stop_price}")
 
         change = TConnectorChangeOrder()
-        change.Version = 1
+        # Manual (SendChangeOrderV2): "Version — Supported: 0".
+        change.Version = 0
         change.AccountID = build_account_id(account, broker_id)
         change.OrderID = build_order_id(order_id, cl_ord_id)
-        change.Password = password
+        change.Password = self._resolve_routing_password(password)
         change.Price = float(price)
         change.StopPrice = float(stop_price)
         change.Quantity = int(quantity)
@@ -234,7 +277,7 @@ class _ClientRoutingMixin(_ClientBase):
         ticker: str,
         *,
         exchange: str,
-        password: str,
+        password: str | None = None,
         broker_id: int | None = None,
     ) -> None:
         """Cancels all active orders for a specific asset."""
@@ -244,7 +287,7 @@ class _ClientRoutingMixin(_ClientBase):
         cancel.Version = 0
         cancel.AccountID = build_account_id(account, broker_id)
         cancel.AssetID = build_asset_id(ticker, exchange)
-        cancel.Password = password
+        cancel.Password = self._resolve_routing_password(password)
 
         code = self._backend.send_cancel_orders_v2(cancel)
         self._check_code(code)
@@ -253,7 +296,7 @@ class _ClientRoutingMixin(_ClientBase):
         self,
         account: str,
         *,
-        password: str,
+        password: str | None = None,
         broker_id: int | None = None,
     ) -> None:
         """Cancels all active orders across all assets for an account."""
@@ -261,7 +304,7 @@ class _ClientRoutingMixin(_ClientBase):
         cancel = TConnectorCancelAllOrders()
         cancel.Version = 0
         cancel.AccountID = build_account_id(account, broker_id)
-        cancel.Password = password
+        cancel.Password = self._resolve_routing_password(password)
 
         code = self._backend.send_cancel_all_orders(cancel)
         self._check_code(code)
@@ -272,19 +315,25 @@ class _ClientRoutingMixin(_ClientBase):
         *,
         exchange: str,
         account: str,
-        password: str,
+        password: str | None = None,
         price: float = -1.0,
         position_type: int = 0,
         broker_id: int | None = None,
     ) -> int:
-        """Submits a zero position order for an asset."""
+        """Submits a zero position order for an asset.
+
+        Returns the **local order ID** (session-scoped identifier attributed
+        by the DLL), not the permanent Profit order ID.
+        """
         broker_id = self._resolve_broker_id(broker_id, account=account)
         validate_exchange(exchange)
         zero = TConnectorZeroPosition()
-        zero.Version = 2
+        # Manual (SendZeroPositionV2): "Version — Supported: 0 .. 1"; from
+        # version 1 onwards PositionType is required (always sent here).
+        zero.Version = 1
         zero.AccountID = build_account_id(account, broker_id)
         zero.AssetID = build_asset_id(ticker, exchange)
-        zero.Password = password
+        zero.Password = self._resolve_routing_password(password)
         zero.Price = float(price)
         zero.PositionType = int(position_type)
         zero.MessageID = -1
@@ -342,14 +391,13 @@ class _ClientRoutingMixin(_ClientBase):
             otype_map = {1: OrderType.MARKET, 2: OrderType.LIMIT, 4: OrderType.STOP}
             order_type_e = otype_map.get(ord_struct.OrderType, OrderType.LIMIT)
 
-            status_map = {
-                0: OrderStatus.NEW,
-                1: OrderStatus.FILLED,
-                2: OrderStatus.CANCELED,
-                3: OrderStatus.REJECTED,
-                4: OrderStatus.PARTIALLY_FILLED,
-            }
-            status_e = status_map.get(ord_struct.OrderStatus, OrderStatus.NEW)
+            # TConnectorOrderStatus maps 1:1 onto the OrderStatus enum
+            # (1=PartiallyFilled, 2=Filled, 4=Canceled, 8=Rejected, ...);
+            # unknown codes degrade to UNKNOWN instead of a wrong status.
+            try:
+                status_e = OrderStatus(ord_struct.OrderStatus)
+            except ValueError:
+                status_e = OrderStatus.UNKNOWN
 
             profit_id = int(ord_struct.OrderID.LocalOrderID or 0)
             cl_ord_id = str(ord_struct.OrderID.ClOrderID or "")

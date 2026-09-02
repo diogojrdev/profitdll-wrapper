@@ -25,6 +25,7 @@ def client(fake_backend: FakeProfitBackend) -> ProfitClient:
         user="fake_user",
         password="fake_password",
         mode="routing",
+        routing_password="routing-pw",
         backend=fake_backend,
         broker_id=150,
     )

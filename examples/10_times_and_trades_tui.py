@@ -507,7 +507,7 @@ def run_demo(args: argparse.Namespace, state: TapeState) -> int:
 
 def run_live(args: argparse.Namespace, state: TapeState) -> int:
     setup_dll_path()
-    activation_key, user, password, _ = load_credentials()
+    activation_key, user, password, _, _ = load_credentials()
     activation_key = args.activation_key or activation_key
     user = args.user or user
     password = args.password or password

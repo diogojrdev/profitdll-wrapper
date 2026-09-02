@@ -18,6 +18,7 @@ def _client(broker_id: int | None = None) -> ProfitClient:
         user="user",
         password="pass",
         mode="routing",
+        routing_password="routing-pw",
         backend=backend,
         broker_id=broker_id,
     )

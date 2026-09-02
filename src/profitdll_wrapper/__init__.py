@@ -30,6 +30,7 @@ from __future__ import annotations
 import logging
 
 from profitdll_wrapper._bindings.enums import (
+    AccountType,
     BookSide,
     BookUpdateType,
     ExchangeCode,
@@ -37,6 +38,7 @@ from profitdll_wrapper._bindings.enums import (
     OrderStatus,
     OrderType,
     SystemHealthState,
+    TradingMessageResultCode,
 )
 from profitdll_wrapper._bindings.errors import (
     AuthError,
@@ -76,6 +78,7 @@ __version__ = "0.2.0"
 
 __all__ = [
     "Account",
+    "AccountType",
     "AdjustHistory",
     "AssetId",
     "AssetInfo",
@@ -107,5 +110,6 @@ __all__ = [
     "TickerStateChange",
     "Trade",
     "TradingMessageResult",
+    "TradingMessageResultCode",
     "__version__",
 ]

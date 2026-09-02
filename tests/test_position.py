@@ -20,6 +20,7 @@ class TestPositionManagement:
             user="user",
             password="pass",
             mode="routing",
+            routing_password="routing-pw",
             backend=fake_backend,
             broker_id=150,
         )
@@ -37,6 +38,7 @@ class TestPositionManagement:
             user="user",
             password="pass",
             mode="routing",
+            routing_password="routing-pw",
             backend=fake_backend,
             broker_id=150,
         )
@@ -66,6 +68,7 @@ class TestPositionManagement:
             user="user",
             password="pass",
             mode="routing",
+            routing_password="routing-pw",
             backend=fake_backend,
             broker_id=150,
         )

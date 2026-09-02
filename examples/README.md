@@ -19,6 +19,7 @@ This directory contains quick-reference guides and ready-to-run Python scripts d
 | [`09_historical_to_database.py`](09_historical_to_database.py) | **History → Database** | Persisting historical trades to a SQLite database via the `ingest` subpackage (programmatic API behind the `profitdll-ingest` CLI). | `market_data` |
 | [`10_times_and_trades_tui.py`](10_times_and_trades_tui.py) | **TUI / Market Data** | Rich Times & Trades with a native-style summary bar (Last/Change/High/Low/Open/Close/Bid), mirrored buyer → seller tape with aggressor-side highlighting, quantity bars and a buy/sell aggression pressure gauge. `--demo` runs anywhere without the DLL. | `market_data` |
 | [`11_order_book_tui.py`](11_order_book_tui.py) | **TUI / Market Data** | Rich full Level-2 DOM: native-style summary bar, mirrored bid/ask sides (Time \| Broker \| Qty \| Price), spread (R$ / bps), proportional quantity bars and side totals. `--demo` runs anywhere without the DLL. | `market_data` |
+| [`12_list_accounts.py`](12_list_accounts.py) | **Accounts** | Enumerates every trading account (and sub-account) linked to the DLL login — owner, broker, type and flags — and validates the `.env` account against the roster. | `routing` |
 
 ---
 
@@ -58,6 +59,9 @@ uv run --extra tui python examples/10_times_and_trades_tui.py --demo
 
 # Example 11: Full order book (DOM) TUI (requires the 'tui' extra; --demo works on any OS)
 uv run --extra tui python examples/11_order_book_tui.py --demo
+
+# Example 12: List all trading accounts linked to the DLL login
+uv run python examples/12_list_accounts.py
 ```
 
 > **Note**: Examples 10 and 11 render with [`rich`](https://rich.readthedocs.io/) — install it

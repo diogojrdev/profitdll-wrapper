@@ -23,7 +23,7 @@ from profitdll_wrapper import Event, ProfitClient, Trade
 
 def main() -> int:
     setup_dll_path()
-    activation_key, user, password, _ = load_credentials()
+    activation_key, user, password, _, _ = load_credentials()
 
     if not (activation_key and user and password):
         print(

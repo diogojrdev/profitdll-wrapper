@@ -111,9 +111,15 @@ class HealthWatchdogAndReconciler:
 
 
 def main() -> int:
-    key, user, password, account = load_credentials()
+    key, user, password, account, routing_key = load_credentials()
     if not (key and user and password):
         logger.error("Missing credentials. Please set PROFITDLL_ACTIVATION_KEY, PROFITDLL_USER, and PROFITDLL_PASSWORD in .env")
+        return 2
+    if not routing_key:
+        logger.error(
+            "Missing ROUTING_KEY: routing mode requires the routing password, "
+            "which differs from the login password."
+        )
         return 2
 
     ticker = os.environ.get("WATCHDOG_TICKER", "PETR4")
@@ -125,6 +131,7 @@ def main() -> int:
             activation_key=key,
             user=user,
             password=password,
+            routing_password=routing_key,
             mode="routing",
             auto_resubscribe=True,
         ) as client:

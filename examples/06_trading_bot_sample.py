@@ -18,7 +18,6 @@ import logging
 import os
 import sys
 import threading
-import uuid
 from dataclasses import dataclass
 from enum import Enum
 from typing import Dict
@@ -27,9 +26,7 @@ from _common import load_credentials, setup_dll_path
 from profitdll_wrapper import (
     Event,
     Order,
-    OrderSide,
     OrderStatus,
-    OrderType,
     Position,
     ProfitClient,
     Trade,
@@ -60,10 +57,9 @@ class BotConfig:
 class GridTradingBot:
     """Sample trading algorithm managing order lifecycle and risk rules."""
 
-    def __init__(self, client: ProfitClient, account: str, password: str, config: BotConfig) -> None:
+    def __init__(self, client: ProfitClient, account: str, config: BotConfig) -> None:
         self.client = client
         self.account = account
-        self.password = password
         self.config = config
         self.state = BotState.IDLE
 
@@ -132,28 +128,24 @@ class GridTradingBot:
                 self._close_position()
 
     def _send_entry_order(self) -> None:
-        cl_ord_id = f"BOT_{uuid.uuid4().hex[:8]}"
         target_price = self.last_price * 0.90 if self.config.safe_test_mode else self.last_price
 
         logger.info(
-            "Submitting LIMIT BUY for %d share(s) @ $ %.2f (cl_ord_id=%s)...",
-            self.config.quantity, target_price, cl_ord_id
+            "Submitting LIMIT BUY for %d share(s) @ $ %.2f...",
+            self.config.quantity, target_price
         )
         try:
-            order_id = self.client.send_order(
+            # The routing password configured on the client is used automatically.
+            order_id = self.client.send_buy_order(
+                self.config.ticker,
+                exchange=self.config.exchange,
                 account=self.account,
-                ticker=self.config.ticker,
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
                 price=target_price,
                 quantity=self.config.quantity,
-                password=self.password,
-                exchange=self.config.exchange,
-                cl_ord_id=cl_ord_id,
             )
             self.active_order_id = order_id
             self.state = BotState.BUY_SENT
-            logger.info("Order registered on server. ProfitID: %d", order_id)
+            logger.info("Order registered on server. Local order ID: %d", order_id)
         except Exception as exc:
             logger.error("Failed to submit entry order: %s", exc)
 
@@ -165,13 +157,11 @@ class GridTradingBot:
                 ticker=self.config.ticker,
                 exchange=self.config.exchange,
                 account=self.account,
-                password=self.password,
             )
             self.client.zero_position(
                 account=self.account,
                 ticker=self.config.ticker,
                 exchange=self.config.exchange,
-                password=self.password,
             )
             logger.info("Position zeroing command submitted successfully.")
         except Exception as exc:
@@ -179,9 +169,15 @@ class GridTradingBot:
 
 
 def main() -> int:
-    key, user, password, account = load_credentials()
+    key, user, password, account, routing_key = load_credentials()
     if not (key and user and password):
         logger.error("Missing credentials. Please set PROFITDLL_ACTIVATION_KEY, PROFITDLL_USER, and PROFITDLL_PASSWORD in .env")
+        return 2
+    if not routing_key:
+        logger.error(
+            "Missing ROUTING_KEY: order routing requires the routing password, "
+            "which differs from the login password."
+        )
         return 2
 
     config = BotConfig(
@@ -196,6 +192,7 @@ def main() -> int:
             activation_key=key,
             user=user,
             password=password,
+            routing_password=routing_key,
             mode="routing",
             auto_resubscribe=True,
         ) as client:
@@ -209,7 +206,7 @@ def main() -> int:
             except Exception as exc:
                 logger.warning("Could not query initial custody positions: %s", exc)
 
-            bot = GridTradingBot(client=client, account=account, password=password, config=config)
+            bot = GridTradingBot(client=client, account=account, config=config)
             bot.start()
 
             print("\n=== Automated Trading Bot Active ===")

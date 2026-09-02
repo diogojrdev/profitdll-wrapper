@@ -34,6 +34,7 @@ class _ClientBase:
     _activation_key: str
     _user: str
     _password: str
+    _routing_password: str
     _auto_resubscribe: bool
     _broker_id: int | None
 

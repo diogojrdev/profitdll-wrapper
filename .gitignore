@@ -74,3 +74,6 @@ docs/profitdll.md
 
 # Local AI-session rules (reference the out-of-repo vendor manual)
 .agents/
+
+# Local scratch/diagnostic folders (never commit)
+_tmp*/

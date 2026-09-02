@@ -74,8 +74,17 @@ def _first(env_names: list[str], file_names: list[str], env: dict[str, str]) -> 
 def load_credentials(env_path: Path | str | None = None) -> dict[str, str]:
     """Loads ProfitDLL credentials from environment and/or ``.env``.
 
-    Returns a dict with keys ``activation_key``, ``user``, ``password`` and
-    ``account``. Missing credentials are returned as empty strings.
+    Returns a dict with keys ``activation_key``, ``user``, ``password``,
+    ``account``, ``broker`` and ``routing_key``. Missing credentials are
+    returned as empty strings.
+
+    ``routing_key`` is the routing password required by every order-routing
+    call (``SendOrder``/``SendCancel*``/``SendChangeOrderV2``/
+    ``SendZeroPositionV2``). It is a credential distinct from the login
+    ``password``: the order server (Hades) validates it before forwarding
+    orders to the broker, and sending the login password instead causes
+    silent rejections that can lock the account. No fallback to ``password``
+    is applied here — an empty string means the caller must decide.
     """
     env = load_env_file(env_path)
     return {
@@ -92,6 +101,11 @@ def load_credentials(env_path: Path | str | None = None) -> dict[str, str]:
         "password": _first(
             ["PROFITDLL_PASSWORD", "PROFITDLL_WRAPPER_PASSWORD"],
             ["PROFITDLL_PASSWORD", "PROFITDLL_WRAPPER_PASSWORD", "PASSWORD"],
+            env,
+        ),
+        "routing_key": _first(
+            ["PROFITDLL_ROUTING_KEY", "PROFITDLL_WRAPPER_ROUTING_KEY"],
+            ["PROFITDLL_ROUTING_KEY", "PROFITDLL_WRAPPER_ROUTING_KEY", "ROUTING_KEY"],
             env,
         ),
         "account": _first(

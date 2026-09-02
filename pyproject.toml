@@ -132,7 +132,8 @@ exclude = [".env", "dll", "examples-nelogica", "site"]
 line-length = 100
 target-version = "py310"
 src = ["src", "tests"]
-extend-exclude = ["examples-nelogica", "docs", "examples"]
+# Local scratch/diagnostic folders (never committed — see .gitignore).
+extend-exclude = ["examples-nelogica", "docs", "examples", "_tmp*"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]

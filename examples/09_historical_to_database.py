@@ -37,7 +37,7 @@ logger = logging.getLogger("history_to_database")
 
 
 def main() -> int:
-    key, user, password, _ = load_credentials()
+    key, user, password, _, _ = load_credentials()
     if not (key and user and password):
         logger.error(
             "Missing credentials. Set ACTIVATION_KEY, USER, and PASSWORD in .env"

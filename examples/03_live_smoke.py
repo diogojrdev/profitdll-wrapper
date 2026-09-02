@@ -54,7 +54,7 @@ def main() -> int:
     )
     args = parse_args()
     setup_dll_path()
-    activation_key, user, password, _ = load_credentials()
+    activation_key, user, password, _, _ = load_credentials()
 
     if not (activation_key and user and password):
         print(

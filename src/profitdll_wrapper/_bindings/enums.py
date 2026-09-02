@@ -233,7 +233,15 @@ class TickerState(IntEnum):
 
 
 class TradingMessageResultCode(IntEnum):
-    """Trading message result code (TConnectorTradingMessageResultCode)."""
+    """Trading message result code (TConnectorTradingMessageResultCode).
+
+    Delivered through ``Event.TRADING_MESSAGE`` as ``result_code``. A healthy
+    order flows ``STARTING -> SENT_TO_HADES_PROXY -> SENT_TO_HADES ->
+    SENT_TO_BROKER -> SENT_TO_MARKET -> ACCEPTED``; the ``REJECTED_*`` values
+    abort that chain. An order that stalls after ``SENT_TO_HADES`` was dropped
+    by the order server (e.g. invalid routing password) without a rejection
+    event.
+    """
 
     STARTING = 0
     NOT_CONNECTED = 1

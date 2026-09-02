@@ -84,7 +84,7 @@ class MarketDataCollector:
 
 
 def main() -> int:
-    key, user, password, _ = load_credentials()
+    key, user, password, _, _ = load_credentials()
     if not (key and user and password):
         logger.error("Missing credentials. Please set PROFITDLL_ACTIVATION_KEY, PROFITDLL_USER, and PROFITDLL_PASSWORD in .env")
         return 2
