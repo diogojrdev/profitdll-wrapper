@@ -20,8 +20,7 @@ Two runners are provided:
   all requests fired up front. Safe because every late answer falls inside the
   same window. Do NOT stack different windows in one run: the historical-trade
   event carries no window, so late responses cannot be attributed to a request
-  (real production incident: one day's tape recorded with another day's
-  trades).
+  when windows differ, leading to cross-window contamination.
 * :func:`ingest_windows` — one request in flight at a time, each with its own
   window; trades outside the current request's window are discarded and
   counted, and completion is driven by the progress callback.

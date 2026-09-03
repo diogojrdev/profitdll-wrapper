@@ -9,7 +9,7 @@ High-performance, idiomatic, typed, and memory-safe Python wrapper for **ProfitD
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://docs.astral.sh/ruff)
 [![Type Checking: mypy](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy.readthedocs.io)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.4.0-blue.svg)](#status)
+[![Status](https://img.shields.io/badge/status-v0.4.1-blue.svg)](#status)
 
 **English** | [Português (BR)](README.pt-BR.md)
 
@@ -18,7 +18,7 @@ High-performance, idiomatic, typed, and memory-safe Python wrapper for **ProfitD
 ---
 
 > [!NOTE]
-> **Status: v0.4.0 — P0 (Trades), P1 (Price Depth), P2 (Order Routing & Custody) and the ingestion stack validated against the vendor simulator / real DLL.**
+> **Status: v0.4.1 — P0 (Trades), P1 (Price Depth), P2 (Order Routing & Custody) and the ingestion stack validated against the vendor simulator / real DLL.**
 > Full test suite with 287 unit and ABI contract tests (80%+ code coverage), running under `mypy --strict`, `ruff`, and `pytest`. *Pure Enqueue* architecture immune to C ↔ GIL reentrancy crashes.
 
 ---
@@ -57,6 +57,44 @@ Detailed architectural and API documentation is published at <https://diogojrdev
 | [Architecture](https://diogojrdev.github.io/profitdll-wrapper/ARCHITECTURE/) | Layer design, abstraction patterns, and thread-safety invariants |
 | [API Surface](https://diogojrdev.github.io/profitdll-wrapper/API_SURFACE/) | Native ProfitDLL function mapping and ABI audit |
 | [Ingest](https://diogojrdev.github.io/profitdll-wrapper/INGEST/) | Historical data ingestion: sinks, schema, and the `profitdll-ingest` CLI |
+
+---
+
+## Live Showcase
+
+Experience real-time market data streaming, order book depth, and historical ingestion in your terminal:
+
+### ⚡ Real-Time Terminal TUIs
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <b>Times & Trades Tape & Aggression Gauge</b><br>
+      <code>examples/10_times_and_trades_tui.py</code><br><br>
+      <img src="docs/assets/times_and_trades.gif" alt="Times & Trades TUI Demo" width="100%" />
+    </td>
+    <td width="50%" align="center">
+      <b>Full Level-2 Order Book (DOM)</b><br>
+      <code>examples/11_order_book_tui.py</code><br><br>
+      <img src="docs/assets/order_book.gif" alt="Order Book DOM TUI Demo" width="100%" />
+    </td>
+  </tr>
+</table>
+
+> [!TIP]
+> Both TUIs run anywhere (cross-platform, even without ProfitDLL credentials or Windows) via synthetic demo mode:
+> ```bash
+> uv run --extra tui python examples/10_times_and_trades_tui.py --demo
+> uv run --extra tui python examples/11_order_book_tui.py --demo
+> ```
+
+### ⚡ High-Speed Historical Ingestion (`profitdll-ingest`)
+
+Download tens of thousands of tick-by-tick trades in seconds directly to SQLite, Parquet, CSV, or PostgreSQL/TimescaleDB:
+
+<p align="center">
+  <img src="docs/assets/historical_ingest.gif" alt="Historical Ingestion to SQLite Demo" width="95%" />
+</p>
 
 ---
 
@@ -258,7 +296,7 @@ See the [ingestion guide](https://diogojrdev.github.io/profitdll-wrapper/INGEST/
 - **The native DLL supports a single lifecycle per process.** After
   `disconnect()` (which calls `DLLFinalize`), constructing a new `ProfitClient`
   in the same process raises
-  `RuntimeError("ProfitDLL já foi finalizada neste processo; ...")`
+  `RuntimeError("ProfitDLL was already finalized in this process; ...")`
   immediately — the DLL's global state survives `DLLFinalize` (the Windows
   loader ref-counts the module) and a re-initialization never completes its
   market-data connection. The vendor manual documents no re-initialization
@@ -267,9 +305,8 @@ See the [ingestion guide](https://diogojrdev.github.io/profitdll-wrapper/INGEST/
 - **`ingest_history` is one-window-per-run by contract**: every ticker shares
   `start_date`/`end_date` and all requests are fired up front. The historical
   trade event carries no window attribution, so stacking runs with different
-  windows on one session contaminates tapes with late responses (a real
-  production incident). Use [`ingest_windows`](#historical-data--database) for
-  per-ticker windows.
+  windows on one session can contaminate tapes with late responses. Use
+  [`ingest_windows`](#historical-data--database) for per-ticker windows.
 - **History is capped at 30 days by the server**: requests whose start date is
   older than 30 days (server date) are rejected with
   `HistoryPeriodLimitError`. Split longer backfills into ≤30-day windows.

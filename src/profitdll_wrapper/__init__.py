@@ -77,7 +77,7 @@ from profitdll_wrapper.client import Event, Mode, ProfitClient
 # so applications without logging configuration see no spurious output.
 logging.getLogger("profitdll_wrapper").addHandler(logging.NullHandler())
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 
 __all__ = [
     "B3_TZ",

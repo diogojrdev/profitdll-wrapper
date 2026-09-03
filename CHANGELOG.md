@@ -7,36 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-03
+
+### Fixed
+
+- **Standardized single-lifecycle exception message in English**:
+  `_ensure_dll_not_finalized()` now raises
+  `RuntimeError("ProfitDLL was already finalized in this process; the native DLL supports a single lifecycle — use one subprocess per session")`,
+  ensuring uniform English messaging across the entire codebase.
+
+### Documentation
+
+- Streamlined `CHANGELOG.md`, `README.md`, `README.pt-BR.md`, and `docs/` to remove internal incident narrative, over-engineering, and pre-release scratchpad notes.
+- Unified `docs/API_SURFACE.md` into a consistent English reference for all 83 native C functions.
+- Fixed malformed table header in `docs/ARCHITECTURE.md` and updated `ROTEAMENTO_CONNECTED` to `ROUTING_CONNECTED`.
+- Added missing **Limitações** section and `ingest_windows` documentation to `README.pt-BR.md`.
+
 ## [0.4.0] - 2026-09-03
 
 Multi-window ingestion release: real per-asset completion via the vendor
-progress callback, a serial multi-window runner, and a fast, clear failure on
-the native DLL's single-lifecycle-per-process limitation. Driven by gaps
-found while building a multi-window tape synchronizer on top of the wrapper
-(one production incident: one day's tape recorded with another day's trades).
+progress callback, a serial multi-window runner (`ingest_windows`), and fast
+failure on the native DLL's single-lifecycle-per-process limitation.
 
 ### Added
 
-- **`Event.HISTORY_PROGRESS` — the vendor `TProgressCallback` is now bound**
-  (manual §3.2: `procedure(rAssetID: TAssetIDRec; nProgress: Integer) stdcall`).
-  The callback is registered at initialization (the same `DLLInitializeLogin` /
-  `DLLInitializeMarketLogin` slot that already carried state/daily — manual:
-  *"Progress callback for some historical request"*) and re-asserted through
-  `SetSerieProgressCallback` (manual: overrides the initialization callback).
-  Handlers receive a `HistoryProgress(asset, progress)` dataclass; per
-  `GetHistoryTrades` docs, *"The TProgressCallback will return the download
-  progress (from 1 to 100)"* — reaching 100 is the request-completion signal
-  consumed by the ingest runners (treated defensively as `>= 100`, since the
-  manual also says "(0-100)" in the callback table).
-- **`ingest_windows()` — serial multi-window runner**: one request in flight
-  at a time, each entry `(ticker, exchange, start_date, end_date)` with its
-  own window. Completion per request is driven by progress == 100 (plus a
-  short inactivity drain), with `first_event_timeout` / `inactivity_timeout` /
-  `request_timeout` / `max_timeout` fallbacks. Trades outside the current
-  request's window are discarded and counted (`discarded_out_of_window`);
-  late answers belonging to previous requests are discarded as strays
-  (`discarded_stray`) — closing the cross-window contamination vector that
-  the fire-all runner cannot defend against.
+- **`Event.HISTORY_PROGRESS` — binds vendor `TProgressCallback`**:
+  Exposes historical download progress via `HistoryProgress(asset, progress)`
+  dataclasses (0–100%). Ingest runners consume reaching 100% as the
+  deterministic request-completion signal instead of relying solely on silence heuristics.
+- **`ingest_windows()` — serial multi-window runner**: executes historical
+  extractions serially (one request in flight at a time) with per-entry time
+  windows. Completion is driven by progress reaching 100% (with timeout fallbacks).
+  Trades outside the target window are discarded (`discarded_out_of_window`),
+  and late answers from previous requests are isolated (`discarded_stray`),
+  preventing cross-window data contamination.
 - **`TickerStats` completeness fields** (additive): `completed_by_progress`,
   `empty`, `timed_out`, `discarded_out_of_window`, `discarded_stray`.
   `ingest_history` also reports them; `trades_written == 0` is now
@@ -73,20 +77,14 @@ found while building a multi-window tape synchronizer on top of the wrapper
 ### Fixed
 
 - **Second DLL lifecycle in one process now fails immediately** with
-  `RuntimeError("ProfitDLL já foi finalizada neste processo; a DLL nativa
-  suporta um único ciclo de vida — use um subprocesso por sessão")` instead
-  of the previous misleading 30s `Connection wait timeout. Pending domains:
-  MARKET_DATA`. Root cause: `ctypes.WinDLL` on the same path returns the
-  already-loaded module (Windows loader ref-counts it), so the DLL's global
-  state survives `DLLFinalize` and a re-init never completes MARKET_DATA.
-  The manual documents no re-initialization support, so the wrapper refuses
-  the second cycle outright (`get_backend()` checks the guard before even
-  loading the DLL; a failed `DLLFinalize` does not arm it).
+  `RuntimeError("ProfitDLL was already finalized in this process; the native DLL supports a single lifecycle — use one subprocess per session")`
+  instead of the previous misleading 30s `Connection wait timeout. Pending domains: MARKET_DATA`.
+  The native DLL retains internal state across `DLLFinalize` when held by the Windows loader in the same process; the wrapper now guards against repeated lifecycle initialization up front.
 - **Watchdog no longer mistakes "queued" for "finished"** (see
   `first_event_timeout` above). Previously `last_activity` started at
   run start, so a ticker whose response was still queued in the DLL was
   declared complete after `inactivity_timeout` without ever receiving an
-  event — silent data loss.
+  event.
 - `run()` docstring no longer implies it pumps events: it is a keep-alive
   wait loop; the dispatcher thread started by `connect()` delivers handlers.
 
@@ -113,18 +111,13 @@ whereas before they were silently marked complete at `inactivity_timeout`.
 
 ### Fixed
 
-- **Order routing used the login password instead of the routing password**
-  (critical incident): every order-routing call
-  (`send_*`, `cancel_*`, `change_order`, `zero_position`) sent the login
-  password where the manual requires the *plain text routing password*, so
-  the order server (Hades) dropped orders silently and repeated attempts
-  locked the account. `load_credentials()` now loads `routing_key`
-  (`PROFITDLL_ROUTING_KEY`/`ROUTING_KEY`), `ProfitClient` accepts
-  `routing_password=` (used as the default for all routing calls, still
-  overridable per call) and refuses to construct with `mode="routing"`
-  without it. Examples 04/06/07 pass the routing key explicitly and abort
-  when it is missing. The two credentials are never conflated: no code path
-  falls back to the login password as the routing password.
+- **Separated order routing password from login credentials**: Order-routing
+  calls (`send_*`, `cancel_*`, `change_order`, `zero_position`) now require the
+  dedicated plain-text routing password instead of reusing the account login password.
+  `load_credentials()` now loads `routing_key` (`PROFITDLL_ROUTING_KEY`), and
+  `ProfitClient` requires `routing_password` in `mode="routing"`.
+  Examples 04/06/07 pass the routing key explicitly and abort when it is missing.
+  No code path falls back to the login password as the routing password.
 - `StopPrice` is now `-1.0` for non-stop orders in `SendOrder` (manual:
   "non-stop orders should be -1"; was `0.0`).
 - `TConnectorCancelOrder.Version`/`TConnectorChangeOrder.Version` set to `0`

@@ -204,5 +204,5 @@ class TestRealDLLWindowsAndLifecycle:
         # DoD 2: second lifecycle fails fast with the clear message.
         second = data["second_lifecycle"]
         assert second["raised"] is True, "second ProfitClient should have raised"
-        assert "único ciclo de vida" in second["message"]
+        assert "single lifecycle" in second["message"]
         assert second["elapsed_s"] < 1.0, second

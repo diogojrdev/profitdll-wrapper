@@ -200,7 +200,7 @@ class TestGetBackend:
         assert backend.finalize() == 0
 
         started = time.perf_counter()
-        with pytest.raises(RuntimeError, match="único ciclo de vida"):
+        with pytest.raises(RuntimeError, match="single lifecycle"):
             get_backend()
         assert time.perf_counter() - started < 1.0
 

@@ -119,8 +119,8 @@ Per-ticker results (`TickerStats`) now also report `completed_by_progress`,
 `start_date`/`end_date` and all requests are fired up front. That is safe
 because every late answer still falls inside the same window. Stacking runs
 with *different* windows on one session is not: the historical-trade event
-carries no window attribution, so late DLL responses leak between groups (a
-real production incident recorded one day's tape with another day's trades).
+carries no window attribution, so late DLL responses leak between groups
+and can contaminate data across windows.
 
 Use `ingest_windows` for per-ticker windows — one request in flight at a
 time, completion by progress, and contamination defenses:

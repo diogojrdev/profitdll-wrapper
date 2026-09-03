@@ -70,7 +70,16 @@ def bind(lib: WinDLL) -> None:
 
 ### `NL_*` Error Codes
 
-Mapped to a typed| Delphi Native | ctypes | Python Model | Description / Notes |
+Native integer return codes (`NL_*`) are validated via `_check_nl_code()` and mapped to typed Python exceptions:
+- `NL_OK (0)`: Success
+- `NL_INTERNAL_ERROR (0x80000001)`: `ProfitAPIError`
+- `NL_INVALID_ARGS (0x80000003)`: `ValueError` / `InvalidArgumentError`
+- `NL_NO_LOGIN (0x80000005)` / `NL_NO_LICENSE (0x80000006)`: `AuthError` / `LicenseError`
+- `NL_HISTORY_PERIOD_LIMIT (0x8000002E)`: `HistoryPeriodLimitError`
+
+### Type Mapping
+
+| Delphi Native | ctypes | Python Model | Description / Notes |
 |---|---|---|---|
 | `PWideChar` | `c_wchar_p` | `str` | **UTF-16 Unicode string**; requires memory deallocation if allocated by DLL |
 | `Pointer` | `c_void_p` | Opaque handle | e.g. `a_pTrade` in `TranslateTrade` |
@@ -183,7 +192,7 @@ class ProfitClient:
 | Domain (`nConnStateType`) | Description | OK State (`nResult`) |
 |---|---|---|
 | `LOGIN (0)` | Authentication | `LOGIN_CONNECTED (0)` |
-| `ROUTING (1)` | Order routing | `ROTEAMENTO_CONNECTED (2)` |
+| `ROUTING (1)` | Order routing | `ROUTING_CONNECTED (2)` |
 | `MARKET_DATA (2)` | Market data feed | `MARKET_CONNECTED (4)` |
 ⚠️ Degradation states handled with warnings:
 - `MARKET_PERFORMANCE_WARNING (5)` — Server performance degradation warning.

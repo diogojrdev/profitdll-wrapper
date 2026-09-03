@@ -68,5 +68,19 @@ uv run python examples/12_list_accounts.py
 > with `uv sync --extra tui` (or pass `--extra tui` to `uv run`). Their `--demo` / `--mock`
 > flag drives a synthetic feed, so no ProfitDLL binary, credentials, or Windows OS is needed.
 
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <b>Times & Trades TUI (<code>10_times_and_trades_tui.py</code>)</b><br><br>
+      <img src="../docs/assets/times_and_trades.gif" alt="Times & Trades TUI" width="100%" />
+    </td>
+    <td width="50%" align="center">
+      <b>Order Book DOM TUI (<code>11_order_book_tui.py</code>)</b><br><br>
+      <img src="../docs/assets/order_book.gif" alt="Order Book TUI" width="100%" />
+    </td>
+  </tr>
+</table>
+
 > **Note**: Even outside market hours, examples execute safely, reading closing prices, asset info, and awaiting events without throwing unexpected errors.
+
 

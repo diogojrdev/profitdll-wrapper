@@ -25,7 +25,7 @@ _LIVE_INFRA_ERRORS: tuple[type[BaseException], ...] = (ProfitConnectionError, Au
 # the native DLL supports one init/finalize cycle per process, so integration
 # tests running after another test already disconnected must skip (fast)
 # instead of hanging on the 30s connection timeout.
-_LIFECYCLE_GUARD_FRAGMENT = "único ciclo de vida"
+_LIFECYCLE_GUARD_FRAGMENT = "single lifecycle"
 
 
 def has_dll_and_credentials(env: dict[str, str]) -> tuple[bool, str]:

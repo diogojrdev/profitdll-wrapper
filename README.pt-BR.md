@@ -9,7 +9,7 @@ Wrapper Python de alta performance, idiomático, tipado e memory-safe para o **P
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://docs.astral.sh/ruff)
 [![Type Checking: mypy](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy.readthedocs.io)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.4.0-blue.svg)](#status)
+[![Status](https://img.shields.io/badge/status-v0.4.1-blue.svg)](#status)
 
 [English](README.md) | **Português (BR)**
 
@@ -18,8 +18,8 @@ Wrapper Python de alta performance, idiomático, tipado e memory-safe para o **P
 ---
 
 > [!NOTE]
-> **Status: v0.4.0 — P0 (Trades), P1 (Price Depth), P2 (Roteamento de Ordens & Custódia) e a stack de ingestão histórica validados contra o simulador/DLL real.**
-> Suíte completa com 225 testes unitários e de contrato ABI (80%+ de cobertura), rodando sob `mypy --strict`, `ruff` e `pytest`. Arquitetura *Pure Enqueue* imune a crashes de reentrância C ↔ GIL.
+> **Status: v0.4.1 — P0 (Trades), P1 (Price Depth), P2 (Roteamento de Ordens & Custódia) e a stack de ingestão histórica validados contra o simulador/DLL real.**
+> Suíte completa com 287 testes unitários e de contrato ABI (80%+ de cobertura), rodando sob `mypy --strict`, `ruff` e `pytest`. Arquitetura *Pure Enqueue* imune a crashes de reentrância C ↔ GIL.
 
 ---
 
@@ -58,6 +58,44 @@ A documentação detalhada de arquitetura e API (em inglês) está publicada em 
 | [Architecture](https://diogojrdev.github.io/profitdll-wrapper/ARCHITECTURE/) | Design em camadas, padrões de abstração e invariantes de thread-safety |
 | [API Surface](https://diogojrdev.github.io/profitdll-wrapper/API_SURFACE/) | Mapeamento das funções nativas do ProfitDLL e auditoria de ABI |
 | [Ingest](https://diogojrdev.github.io/profitdll-wrapper/INGEST/) | Ingestão de dados históricos: sinks, schema e a CLI `profitdll-ingest` |
+
+---
+
+## Demonstração Visual (Showcase)
+
+Veja a biblioteca em ação no terminal: streaming de market data em tempo real, profundidade de livro de ofertas e ingestão histórica em alta velocidade:
+
+### ⚡ Interfaces de Terminal (TUIs)
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <b>Times & Trades Tape & Medidor de Agressão</b><br>
+      <code>examples/10_times_and_trades_tui.py</code><br><br>
+      <img src="docs/assets/times_and_trades.gif" alt="Times & Trades TUI Demo" width="100%" />
+    </td>
+    <td width="50%" align="center">
+      <b>Livro de Ofertas Completo (DOM Level-2)</b><br>
+      <code>examples/11_order_book_tui.py</code><br><br>
+      <img src="docs/assets/order_book.gif" alt="Order Book DOM TUI Demo" width="100%" />
+    </td>
+  </tr>
+</table>
+
+> [!TIP]
+> Ambos os TUIs rodam em qualquer sistema operacional (inclusive sem credenciais da DLL) usando o modo `--demo`:
+> ```bash
+> uv run --extra tui python examples/10_times_and_trades_tui.py --demo
+> uv run --extra tui python examples/11_order_book_tui.py --demo
+> ```
+
+### ⚡ Ingestão Histórica em Alta Velocidade (`profitdll-ingest`)
+
+Baixe dezenas de milhares de trades tick-a-tick em segundos diretamente para SQLite, Parquet, CSV ou PostgreSQL/TimescaleDB:
+
+<p align="center">
+  <img src="docs/assets/historical_ingest.gif" alt="Demonstração da Ingestão de Histórico para SQLite" width="95%" />
+</p>
 
 ---
 
@@ -228,7 +266,33 @@ print(f"{stats.trades_written} trades persistidos em {stats.elapsed_seconds:.1f}
 sink.close()
 ```
 
+Para extrações com janelas de datas individuais por ativo, utilize `ingest_windows` — ele executa uma requisição de cada vez, acompanha a conclusão pelo callback de progresso nativo (`Event.HISTORY_PROGRESS`, progresso atingindo 100) e isola respostas fora da janela alvo:
+
+```python
+from profitdll_wrapper.ingest import ingest_windows
+
+with ProfitClient(activation_key="...", user="...", password="...") as client:
+    stats = ingest_windows(
+        client=client,
+        sink=sink,
+        tickers=[
+            ("PETR4", "B", "27/08/2026 10:00:00", "27/08/2026 16:55:00"),
+            ("PETR4", "B", "02/09/2026 10:00:00", "02/09/2026 16:55:00"),
+        ],
+    )
+    for req in stats.tickers:
+        print(req.ticker, req.trades_written, "completed_by_progress =", req.completed_by_progress)
+```
+
 Veja o [guia de ingestão](https://diogojrdev.github.io/profitdll-wrapper/INGEST/) (em inglês) para detalhes de schema, hypertables, idempotência e tuning, e [`examples/09_historical_to_database.py`](examples/09_historical_to_database.py) para um exemplo ponta a ponta executável.
+
+---
+
+## Limitações
+
+- **A DLL nativa suporta um único ciclo de vida por processo.** Após chamar `disconnect()` (que executa `DLLFinalize`), instanciar um novo `ProfitClient` no mesmo processo lança `RuntimeError("ProfitDLL was already finalized in this process; ...")` imediatamente — o estado global da DLL persiste no processo do Windows. **Utilize um subprocesso por sessão** quando precisar de múltiplas sessões sequenciais (o mesmo padrão adotado pelos testes de integração).
+- **`ingest_history` opera com uma única janela por execução**: todos os ativos compartilham `start_date`/`end_date`. Como eventos históricos não trazem metadados da janela de requisição, misturar janelas diferentes na mesma sessão pode causar contaminação de dados. Use `ingest_windows` para requisições com janelas individuais.
+- **Histórico limitado a 30 dias pelo servidor**: requisições cuja data inicial seja anterior a 30 dias da data do servidor são rejeitadas com `HistoryPeriodLimitError`. Divida períodos longos em janelas de até 30 dias.
 
 ---
 

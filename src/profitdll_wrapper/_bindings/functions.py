@@ -961,8 +961,8 @@ def _ensure_dll_not_finalized() -> None:
     """Raises RuntimeError when the DLL lifecycle was already consumed."""
     if _dll_finalized:
         raise RuntimeError(
-            "ProfitDLL já foi finalizada neste processo; a DLL nativa suporta um "
-            "único ciclo de vida — use um subprocesso por sessão"
+            "ProfitDLL was already finalized in this process; the native DLL "
+            "supports a single lifecycle — use one subprocess per session"
         )
 
 
