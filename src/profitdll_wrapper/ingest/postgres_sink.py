@@ -45,14 +45,41 @@ def _require_psycopg() -> Any:
 
 
 class PostgresSink(BufferedSink):
-    """Persists trades and daily candles to a PostgreSQL / TimescaleDB database."""
+    """Persists trades and daily candles to a PostgreSQL / TimescaleDB database.
 
-    def __init__(self, db_url: str, batch_size: int = 500) -> None:
-        super().__init__(batch_size=batch_size)
-        psycopg = _require_psycopg()
+    Args:
+        db_url: libpq URL (``postgresql://user:pass@host:5432/db``). Either
+            ``db_url`` or ``connection`` must be given, never both.
+        batch_size: Number of records buffered before an automatic flush.
+        connection: Existing psycopg3 connection to reuse (e.g. a shared pool
+            connection across multi-group runs). The sink still ensures the
+            schema exists but never commits ``close()`` on a borrowed
+            connection — the caller owns its lifecycle.
+        assume_b3_local: See :class:`~profitdll_wrapper.ingest._base.BufferedSink`.
+    """
+
+    def __init__(
+        self,
+        db_url: str | None = None,
+        batch_size: int = 500,
+        *,
+        connection: Any = None,
+        assume_b3_local: bool = False,
+    ) -> None:
+        super().__init__(batch_size=batch_size, assume_b3_local=assume_b3_local)
+        if (db_url is None) == (connection is None):
+            msg = "PostgresSink requires exactly one of db_url or connection."
+            raise ValueError(msg)
         self._lock = threading.Lock()
-        # autocommit=False so DDL + inserts share explicit transactions.
-        self._conn = psycopg.connect(db_url)
+        if connection is not None:
+            self._owns_connection = False
+            self._conn = connection
+        else:
+            psycopg = _require_psycopg()
+            self._owns_connection = True
+            # autocommit=False so DDL + inserts share explicit transactions.
+            assert db_url is not None  # narrowed by the check above
+            self._conn = psycopg.connect(db_url)
         self._init_schema()
 
     def _init_schema(self) -> None:
@@ -121,8 +148,9 @@ class PostgresSink(BufferedSink):
                 raise
 
     def _on_close(self) -> None:
-        with self._lock:
-            self._conn.close()
+        if self._owns_connection:
+            with self._lock:
+                self._conn.close()
 
 
 __all__ = ["PostgresSink"]

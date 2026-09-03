@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, ClassVar, Final
 
-from profitdll_wrapper._bindings.callbacks import TC_IS_EDIT
+from profitdll_wrapper._bindings.callbacks import TC_IS_EDIT, TC_LAST_PACKET
 from profitdll_wrapper._bindings.enums import (
     OK_RESULT_BY_STATE,
     ActivationResult,
@@ -38,6 +38,7 @@ from profitdll_wrapper._types.messages import (
     AdjustHistory,
     AssetInfo,
     DailyCandle,
+    HistoryProgress,
     InvalidTickerEvent,
     TickerStateChange,
     TradingMessageResult,
@@ -847,6 +848,9 @@ class _ClientCallbackMixin(_ClientBase):
         try:
             asset_id = AssetId.from_native(asset)
             is_edit = bool(flags & TC_IS_EDIT)
+            # Manual (SetHistoryTradeCallbackV2): TC_LAST_PACKET flags the last
+            # trade of that particular history request — informational only.
+            last_packet = bool(flags & TC_LAST_PACKET)
 
             raw = TConnectorTrade()
             raw.Version = 0
@@ -859,10 +863,26 @@ class _ClientCallbackMixin(_ClientBase):
                 )
                 return
 
-            trade = Trade.from_native(asset_id, raw, is_edit=is_edit)
+            trade = Trade.from_native(asset_id, raw, is_edit=is_edit, last_packet=last_packet)
             self._dispatcher.enqueue_historical_trade(trade)
         except Exception:
             logger.exception("Error in history trade callback")
+
+    def _on_history_progress(
+        self,
+        r_asset: TAssetID,
+        n_progress: int,
+    ) -> None:
+        """Thin progress callback (TProgressCallback) for historical requests."""
+        try:
+            asset_id = AssetId.from_legacy(r_asset)
+            if not asset_id.ticker:
+                return
+            self._dispatcher.enqueue_history_progress(
+                HistoryProgress(asset=asset_id, progress=int(n_progress))
+            )
+        except Exception:
+            logger.exception("Error in history progress callback")
 
     def _on_adjust_history_v2(
         self,

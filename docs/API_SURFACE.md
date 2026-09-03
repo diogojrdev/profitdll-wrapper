@@ -67,7 +67,7 @@ Priority Legend:
 | `SetDailyCallback` | P1 | candle diário |
 | `SetTheoreticalPriceCallback` | P2 | preço teórico |
 | `SetTinyBookCallback` | P2 | tiny book |
-| `SetSerieProgressCallback` | P3 | progresso de série |
+| `SetSerieProgressCallback` | **P3 ✅ (v0.4.0)** | `TProgressCallback` — progresso de requests históricos (1–100); bindado na inicialização e exposto como `Event.HISTORY_PROGRESS` |
 | `SetOfferBookCallback` / `V2` | **P1** (V1) / P4 (V2) | book de ofertas |
 | `SetPriceBookCallback` / `V2` | **P1** (V1) / P4 (V2) | book de preços |
 | `SetAdjustHistoryCallback` / `V2` | P3 | ajustes |
@@ -156,7 +156,7 @@ Critical subset:
 | `NL_NO_LOGIN` | `0x80000005` | Sem login | `AuthError` |
 | `NL_NO_LICENSE` | `0x80000006` | Sem licença | `LicenseError` |
 | `NL_INVALID_TICKER` | `0x8000001F` | Ticker inválido | `ValueError` |
-| `NL_HISTORY_PERIOD_LIMIT` | `0x8000002E` | Histórico > 30 dias | `ValueError` com dica |
+| `NL_HISTORY_PERIOD_LIMIT` | `0x8000002E` | Histórico > 30 dias | `HistoryPeriodLimitError` (subclasse de `InvalidArgumentError`, v0.4.0) com dica de fatiar em janelas ≤30 dias |
 
 Hierarquia proposta:
 
@@ -165,6 +165,7 @@ ProfitError
 ├── ProfitAPIError (código NL_*)
 │   ├── AuthError          (login/senha/licença)
 │   ├── InvalidArgumentError
+│   │   └── HistoryPeriodLimitError  (v0.4.0 — início > 30 dias)
 │   └── ServerStateError
 ├── ProfitConnectionError
 └── PlatformNotSupportedError

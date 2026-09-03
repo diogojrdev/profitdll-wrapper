@@ -37,6 +37,7 @@ from profitdll_wrapper._bindings.callbacks import (
     TOfferBookCallbackV2,
     TOrderChangeCallbackV2,
     TPriceDepthCallback,
+    TProgressCallback,
     TStateCallback,
     TSystemHealthCallback,
     TTradeCallbackV2,
@@ -72,6 +73,7 @@ class Backend(Protocol):
         state_callback: object,
         daily_callback: object,
         order_change_callback: object = None,
+        progress_callback: object = None,
     ) -> int: ...
 
     def initialize_market_login(
@@ -81,6 +83,7 @@ class Backend(Protocol):
         password: str,
         state_callback: object,
         daily_callback: object,
+        progress_callback: object = None,
     ) -> int: ...
 
     def finalize(self) -> int: ...
@@ -97,6 +100,8 @@ class Backend(Protocol):
     def get_history_trades(self, ticker: str, exchange: str, start: str, end: str) -> int: ...
 
     def set_history_trade_callback_v2(self, callback: object) -> int: ...
+
+    def set_serie_progress_callback(self, callback: object) -> int: ...
 
     # ---- Book & Price Depth ---- #
     def subscribe_price_depth(self, asset: TConnectorAssetIdentifier) -> int: ...
@@ -274,6 +279,11 @@ def bind(lib: ctypes.WinDLL) -> ctypes.WinDLL:
             fn.restype = restype
 
     # ----------------------- Initialization ---------------------- #
+    # Slot layout per the vendor manual (docs/profitdll.md):
+    # DLLInitializeMarketLogin(key, user, password, StateCallback,
+    #   NewTradeCallback, NewDailyCallback, PriceBookCallback,
+    #   OfferBookCallback, HistoryTradeCallback, ProgressCallback,
+    #   TinyBookCallback) — ProgressCallback is the 10th argument.
     _bind_fn(
         "DLLInitializeMarketLogin",
         [
@@ -286,12 +296,17 @@ def bind(lib: ctypes.WinDLL) -> ctypes.WinDLL:
             c_wchar_p,
             c_wchar_p,
             c_wchar_p,
-            c_wchar_p,
+            TProgressCallback,
             c_wchar_p,
         ],
         c_int,
     )
 
+    # DLLInitializeLogin(key, user, password, StateCallback, HistoryCallback,
+    #   OrderChangeCallback, AccountCallback, NewTradeCallback,
+    #   NewDailyCallback, PriceBookCallback, OfferBookCallback,
+    #   HistoryTradeCallback, ProgressCallback, TinyBookCallback) —
+    # ProgressCallback is the 13th argument.
     _bind_fn(
         "DLLInitializeLogin",
         [
@@ -307,7 +322,7 @@ def bind(lib: ctypes.WinDLL) -> ctypes.WinDLL:
             c_wchar_p,
             c_wchar_p,
             c_wchar_p,
-            c_wchar_p,
+            TProgressCallback,
             c_wchar_p,
         ],
         c_int,
@@ -323,6 +338,7 @@ def bind(lib: ctypes.WinDLL) -> ctypes.WinDLL:
     # ----------------------- Callbacks V2 (trades) --------------- #
     _bind_fn("SetTradeCallbackV2", [TTradeCallbackV2], c_int)
     _bind_fn("SetHistoryTradeCallbackV2", [TTradeCallbackV2], c_int)
+    _bind_fn("SetSerieProgressCallback", [TProgressCallback], c_int)
 
     # ----------------------- Accessor (trades) ------------------- #
     _bind_fn("TranslateTrade", [c_size_t, POINTER(TConnectorTrade)], c_int)
@@ -506,6 +522,7 @@ _KNOWN_DLL_FUNCTIONS: tuple[str, ...] = (
     "SetEnabledHistOrder",
     "GetHistoryTrades",
     "SetHistoryTradeCallbackV2",
+    "SetSerieProgressCallback",
     "SubscribeAdjustHistory",
     "UnsubscribeAdjustHistory",
     "SetAdjustHistoryCallbackV2",
@@ -545,6 +562,7 @@ class _RealBackend:
         state_callback: object,
         daily_callback: object,
         order_change_callback: object = None,
+        progress_callback: object = None,
     ) -> int:
         fn = self._call_get_fn("DLLInitializeLogin")
         if fn is None:
@@ -563,7 +581,7 @@ class _RealBackend:
                 None,
                 None,
                 None,
-                None,
+                progress_callback,
                 None,
             )
         )
@@ -583,6 +601,7 @@ class _RealBackend:
         password: str,
         state_callback: object,
         daily_callback: object,
+        progress_callback: object = None,
     ) -> int:
         fn = self._call_get_fn("DLLInitializeMarketLogin")
         if fn is None:
@@ -598,13 +617,19 @@ class _RealBackend:
                 None,
                 None,
                 None,
-                None,
+                progress_callback,
                 None,
             )
         )
 
     def finalize(self) -> int:
-        return self._call_fn("DLLFinalize", default_err=int(NLCode.OK))
+        fn = self._call_get_fn("DLLFinalize")
+        if fn is None:
+            return int(NLCode.OK)
+        code = int(fn())
+        if code == int(NLCode.OK):
+            _mark_dll_finalized()
+        return code
 
     def subscribe_ticker(self, ticker: str, exchange: str) -> int:
         return self._call_fn("SubscribeTicker", ticker, exchange)
@@ -625,6 +650,13 @@ class _RealBackend:
     def set_history_trade_callback_v2(self, callback: object) -> int:
         cb = callback if callback is not None else TTradeCallbackV2(0)
         return self._call_fn("SetHistoryTradeCallbackV2", cb, default_err=int(NLCode.OK))
+
+    def set_serie_progress_callback(self, callback: object) -> int:
+        # Manual (SetSerieProgressCallback): overrides the TProgressCallback
+        # defined by DLLInitializeLogin / DLLInitializeMarketLogin. Used here
+        # to unregister the progress callback during teardown (None -> null).
+        cb = callback if callback is not None else TProgressCallback(0)
+        return self._call_fn("SetSerieProgressCallback", cb, default_err=int(NLCode.OK))
 
     # ---- Price Depth (P1) ---- #
     def subscribe_price_depth(self, asset: TConnectorAssetIdentifier) -> int:
@@ -894,13 +926,44 @@ def get_backend() -> Backend:
     """Loads native DLL, binds signatures, and returns real Backend instance.
 
     Should be called on Windows OS with valid ProfitDLL installation.
+
+    Raises:
+        RuntimeError: If the native DLL was already finalized in this process.
+            The DLL supports a single lifecycle per process (the manual
+            documents no re-initialization after ``DLLFinalize``), so a second
+            session must run in a fresh subprocess.
     """
+    _ensure_dll_not_finalized()
     from profitdll_wrapper._bindings.loader import _load_dll
 
     lib = bind(_load_dll())
     backend = _RealBackend(lib)
     _register_active_backend(backend)
     return backend
+
+
+# The native DLL supports a single lifecycle per process: once DLLFinalize has
+# run, a new DLLInitialize* call returns OK but the connection states never
+# complete (observed in production: MARKET_LOGIN result=0, then MARKET_DATA
+# silent until the 30s timeout). The vendor manual documents no
+# re-initialization support, so the wrapper fails fast on the second attempt
+# instead of letting connect() hit a misleading timeout.
+_dll_finalized = False
+
+
+def _mark_dll_finalized() -> None:
+    """Records that DLLFinalize ran in this process (no re-init is possible)."""
+    global _dll_finalized
+    _dll_finalized = True
+
+
+def _ensure_dll_not_finalized() -> None:
+    """Raises RuntimeError when the DLL lifecycle was already consumed."""
+    if _dll_finalized:
+        raise RuntimeError(
+            "ProfitDLL já foi finalizada neste processo; a DLL nativa suporta um "
+            "único ciclo de vida — use um subprocesso por sessão"
+        )
 
 
 # Tracks live backends so the process can DLLFinalize them on interpreter
@@ -931,6 +994,7 @@ def finalize_active_backends() -> None:
         with contextlib.suppress(Exception):
             backend.finalize()
     _active_backends.clear()
+    _mark_dll_finalized()
 
 
 # Set when the atexit safety net finalizes backends; lets client state

@@ -9,7 +9,7 @@ Wrapper Python de alta performance, idiomático, tipado e memory-safe para o **P
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://docs.astral.sh/ruff)
 [![Type Checking: mypy](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy.readthedocs.io)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.1.0--alpha-orange.svg)](#status)
+[![Status](https://img.shields.io/badge/status-v0.4.0-blue.svg)](#status)
 
 [English](README.md) | **Português (BR)**
 
@@ -18,7 +18,7 @@ Wrapper Python de alta performance, idiomático, tipado e memory-safe para o **P
 ---
 
 > [!NOTE]
-> **Status: v0.1.0 (alpha) — primeiro release público. P0 (Trades), P1 (Price Depth) e P2 (Roteamento de Ordens & Custódia) validados contra o simulador da Nelogica.**
+> **Status: v0.4.0 — P0 (Trades), P1 (Price Depth), P2 (Roteamento de Ordens & Custódia) e a stack de ingestão histórica validados contra o simulador/DLL real.**
 > Suíte completa com 225 testes unitários e de contrato ABI (80%+ de cobertura), rodando sob `mypy --strict`, `ruff` e `pytest`. Arquitetura *Pure Enqueue* imune a crashes de reentrância C ↔ GIL.
 
 ---

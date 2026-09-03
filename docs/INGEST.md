@@ -93,6 +93,108 @@ for ts in stats.tickers:
     print(f"{ts.ticker}: {ts.trades_written} trades, {ts.candles_written} candles")
 ```
 
+Since v0.4.0, completion is not guessed from silence alone: the DLL's vendor
+progress callback (`TProgressCallback`, registered at initialization) is
+exposed as `Event.HISTORY_PROGRESS` (`HistoryProgress(asset, progress)`), and
+per the manual's `GetHistoryTrades` entry the progress runs 1→100 — **100
+means the request finished**. Both runners treat `progress >= 100` (confirmed
+by a short inactivity drain) as the real per-ticker completion signal, with
+timeouts as fallbacks:
+
+- **`first_event_timeout`** (default 60 s) — grace for the FIRST event (trade,
+  candle or progress) of a ticker. A ticker that never receives anything is
+  flagged `empty=True` with a `WARNING` log instead of being silently declared
+  complete: a response still queued inside the DLL is not a finished stream.
+- **`inactivity_timeout`** — silence after events started flowing (and the
+  drain window applied after progress reaches 100).
+- **`max_timeout`** / `request_timeout` — hard ceilings (whole run / per request).
+
+Per-ticker results (`TickerStats`) now also report `completed_by_progress`,
+`empty`, `timed_out`, `discarded_out_of_window` and `discarded_stray`, so
+`trades_written == 0` is distinguishable from "the request never drained".
+
+### Multi-window runs (`ingest_windows`)
+
+`ingest_history` is **one window per run** by contract: every ticker shares
+`start_date`/`end_date` and all requests are fired up front. That is safe
+because every late answer still falls inside the same window. Stacking runs
+with *different* windows on one session is not: the historical-trade event
+carries no window attribution, so late DLL responses leak between groups (a
+real production incident recorded one day's tape with another day's trades).
+
+Use `ingest_windows` for per-ticker windows — one request in flight at a
+time, completion by progress, and contamination defenses:
+
+```python
+from profitdll_wrapper.ingest import ingest_windows
+
+with ProfitClient(...) as client:
+    stats = ingest_windows(
+        client=client,
+        sink=sink,
+        tickers=[
+            # (ticker, exchange, start, end) — execution order, duplicates allowed
+            ("PETR4", "B", "27/08/2026 10:00:00", "27/08/2026 16:55:00"),
+            ("VALE3", "B", "27/08/2026 10:00:00", "27/08/2026 16:55:00"),
+            ("PETR4", "B", "02/09/2026 10:00:00", "02/09/2026 16:55:00"),
+        ],
+        first_event_timeout=60.0,   # nothing received at all -> empty + warning
+        inactivity_timeout=15.0,    # also the drain after progress hits 100
+        request_timeout=300.0,      # hard ceiling per request
+        max_timeout=1800.0,         # hard ceiling for the whole run
+        stop_client=False,          # keep the session for the next run
+    )
+```
+
+Guarantees:
+
+- The next request is only issued after the current one completes, so every
+  answer is attributable to its request.
+- Trades of the current ticker **outside its window** are discarded and
+  counted in `TickerStats.discarded_out_of_window`; trades of **another
+  ticker** (late answers of previous requests) are discarded and counted in
+  `discarded_stray`. Nothing outside a request's window reaches the sink.
+- Trades-only (daily candles have no per-window semantics; use
+  `ingest_history` with `data_types=["candles"]`).
+- Timeouts never raise; inspect `timed_out`/`empty`/`invalid` per request.
+  When `max_timeout` is exceeded, remaining requests are skipped and marked
+  `timed_out`.
+
+Both runners accept **`stop_client=False`** to keep the session open for the
+next run on the same client (`ProfitClient.interrupt_run()` unblocks `run()`
+without stopping event delivery), and they remove their event handlers when
+they finish (`client.off`), so back-to-back runs never duplicate writes.
+
+### Timezones (B3 → UTC)
+
+The DLL reports naive B3-local timestamps. Sinks (and `create_sink`) accept
+`assume_b3_local=True` to persist timezone-aware UTC instead — no
+per-consumer `UtcSink` subclass needed:
+
+```python
+sink = create_sink("postgres", db_url=..., assume_b3_local=True)
+```
+
+The standalone helper `b3_local_to_utc(dt)` (exported from the package root)
+converts single datetimes. It uses `zoneinfo`'s `America/Sao_Paulo` when the
+IANA database is available and falls back to the fixed UTC-03:00 offset
+otherwise (exact for every date since Brazil abolished DST in 2019 — and the
+server caps history at 30 days anyway).
+
+### Reusing a Postgres connection
+
+`PostgresSink` accepts an existing psycopg3 connection instead of a URL —
+handy for one-connection-per-process across multi-group runs. Borrowed
+connections are never closed by the sink:
+
+```python
+conn = psycopg.connect(db_url)
+sink_a = PostgresSink(connection=conn)
+sink_b = PostgresSink(connection=conn)   # shared
+...
+conn.close()                              # caller owns the lifecycle
+```
+
 ## Schema
 
 Both tables use composite primary keys so re-running an extraction is safe
@@ -152,7 +254,8 @@ rows rather than duplicating them. This makes backfills and retries safe.
   memory. `500`–`2000` is a sensible range for tick data.
 - **`inactivity_timeout`**: Lower values make the run end faster when a
   ticker has little data; raise it for very liquid instruments that stream in
-  bursts. The DLL does not signal completion, so this is a heuristic.
+  bursts. Since v0.4.0 this is only the fallback/drain heuristic — the
+  progress callback (100) is the real completion signal.
 - **`max_timeout`**: Always set a hard ceiling for unattended runs.
 
 ## Known limits
@@ -161,7 +264,10 @@ rows rather than duplicating them. This makes backfills and retries safe.
 
 The Nelogica API rejects historical requests whose start date is older than
 **30 days** relative to the current server date, returning
-`InvalidArgumentError: ProfitDLL error HISTORY_PERIOD_LIMIT (0x8000002e)`.
+`HistoryPeriodLimitError` (subclass of `InvalidArgumentError`, since v0.4.0):
+*"ProfitDLL error HISTORY_PERIOD_LIMIT (0x8000002e) — the server rejects
+requests whose start date is older than 30 days; split the range into
+<=30-day windows."*
 
 To backfill older data, split the range into ≤30-day windows and run the CLI
 once per window. Re-runs are idempotent (UPSERT), so overlapping windows are
@@ -200,10 +306,17 @@ docker exec -it profitdll-timescaledb psql -U profit -d profit \
 
 ## Notes
 
-- **No completion signal**: The native DLL does not emit an explicit
-  end-of-history event. The runner relies on the inactivity heuristic above.
-- **Multi-ticker**: Tickers are requested up front and consumed concurrently;
-  the inactivity watchdog considers the run complete only when *every*
-  requested ticker has gone quiet (or `max_timeout` is reached).
+- **Completion signal**: since v0.4.0 the vendor progress callback
+  (`TProgressCallback`) drives per-ticker completion (`progress >= 100` plus a
+  short drain); the inactivity/first-event timeouts remain as fallbacks for
+  requests the DLL never answers.
+- **Multi-ticker (`ingest_history`)**: tickers are requested up front and
+  consumed concurrently; the run completes when *every* requested ticker
+  finished (progress/idle/first-event) or `max_timeout` is reached. One
+  window per run — see [Multi-window runs](#multi-window-runs-ingest_windows).
+- **Single DLL lifecycle per process**: after `disconnect()` (which calls
+  `DLLFinalize`), constructing a new `ProfitClient` in the same process
+  raises `RuntimeError` immediately — the native DLL does not support
+  re-initialization. Use one subprocess per session for sequential sessions.
 - **Invalid tickers**: `Event.INVALID_TICKER` is handled gracefully — the
   ticker is flagged and skipped without aborting the run.

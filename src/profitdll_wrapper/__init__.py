@@ -42,6 +42,7 @@ from profitdll_wrapper._bindings.enums import (
 )
 from profitdll_wrapper._bindings.errors import (
     AuthError,
+    HistoryPeriodLimitError,
     InvalidArgumentError,
     NLCode,
     PlatformNotSupportedError,
@@ -51,9 +52,11 @@ from profitdll_wrapper._bindings.errors import (
     ServerStateError,
 )
 from profitdll_wrapper._events.dispatcher import EventDispatcher
+from profitdll_wrapper._timeutils import B3_TZ, b3_local_to_utc
 from profitdll_wrapper._types.messages import (
     AdjustHistory,
     AssetInfo,
+    HistoryProgress,
     InvalidTickerEvent,
     TickerStateChange,
     TradingMessageResult,
@@ -74,9 +77,10 @@ from profitdll_wrapper.client import Event, Mode, ProfitClient
 # so applications without logging configuration see no spurious output.
 logging.getLogger("profitdll_wrapper").addHandler(logging.NullHandler())
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
+    "B3_TZ",
     "Account",
     "AccountType",
     "AdjustHistory",
@@ -89,6 +93,8 @@ __all__ = [
     "Event",
     "EventDispatcher",
     "ExchangeCode",
+    "HistoryPeriodLimitError",
+    "HistoryProgress",
     "InvalidArgumentError",
     "InvalidTickerEvent",
     "Mode",
@@ -112,4 +118,5 @@ __all__ = [
     "TradingMessageResult",
     "TradingMessageResultCode",
     "__version__",
+    "b3_local_to_utc",
 ]

@@ -43,8 +43,14 @@ def _placeholder_list(n: int) -> str:
 class SqliteSink(BufferedSink):
     """Persists trades and daily candles to a SQLite database."""
 
-    def __init__(self, db_url: str = "sqlite:///./profit_data.db", batch_size: int = 500) -> None:
-        super().__init__(batch_size=batch_size)
+    def __init__(
+        self,
+        db_url: str = "sqlite:///./profit_data.db",
+        batch_size: int = 500,
+        *,
+        assume_b3_local: bool = False,
+    ) -> None:
+        super().__init__(batch_size=batch_size, assume_b3_local=assume_b3_local)
         self._db_path = _normalize_db_url(db_url)
         # sqlite3 connections are not safe to share across threads; the ingest
         # runner calls write_* from the dispatcher thread, so guard with a lock.

@@ -9,7 +9,7 @@ High-performance, idiomatic, typed, and memory-safe Python wrapper for **ProfitD
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://docs.astral.sh/ruff)
 [![Type Checking: mypy](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy.readthedocs.io)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.1.0--alpha-orange.svg)](#status)
+[![Status](https://img.shields.io/badge/status-v0.4.0-blue.svg)](#status)
 
 **English** | [Português (BR)](README.pt-BR.md)
 
@@ -18,8 +18,8 @@ High-performance, idiomatic, typed, and memory-safe Python wrapper for **ProfitD
 ---
 
 > [!NOTE]
-> **Status: v0.1.0 (alpha) — first public release. P0 (Trades), P1 (Price Depth) & P2 (Order Routing & Custody) validated against the vendor simulator.**
-> Full test suite with 225 unit and ABI contract tests (80%+ code coverage), running under `mypy --strict`, `ruff`, and `pytest`. *Pure Enqueue* architecture immune to C ↔ GIL reentrancy crashes.
+> **Status: v0.4.0 — P0 (Trades), P1 (Price Depth), P2 (Order Routing & Custody) and the ingestion stack validated against the vendor simulator / real DLL.**
+> Full test suite with 287 unit and ABI contract tests (80%+ code coverage), running under `mypy --strict`, `ruff`, and `pytest`. *Pure Enqueue* architecture immune to C ↔ GIL reentrancy crashes.
 
 ---
 
@@ -179,6 +179,7 @@ Explore the [`examples/`](examples/) directory — eleven ready-to-run scripts, 
 | [`09_historical_to_database.py`](examples/09_historical_to_database.py) | History → Database | Historical trades to SQLite via the `ingest` subpackage | `market_data` |
 | [`10_times_and_trades_tui.py`](examples/10_times_and_trades_tui.py) | TUI / Market Data | Native-style Times & Trades: summary bar, mirrored buyer/seller tape, quantity bars and pressure gauge (`rich`, `--demo` anywhere) | `market_data` |
 | [`11_order_book_tui.py`](examples/11_order_book_tui.py) | TUI / Market Data | Full Level-2 DOM with native summary bar, mirrored bid/ask sides and proportional quantity bars (`rich`, `--demo` anywhere) | `market_data` |
+| [`12_list_accounts.py`](examples/12_list_accounts.py) | Custody | Enumerates every trading account (and sub-account) for the login, validating the `.env` account | `routing` |
 
 ---
 
@@ -227,7 +228,51 @@ print(f"{stats.trades_written} trades persisted in {stats.elapsed_seconds:.1f}s"
 sink.close()
 ```
 
-See the [ingestion guide](https://diogojrdev.github.io/profitdll-wrapper/INGEST/) for schema details, hypertables, idempotency, and tuning, and [`examples/09_historical_to_database.py`](examples/09_historical_to_database.py) for a runnable end-to-end example.
+**Multiple windows in one session** (e.g. each trading day with its own session
+hours): use `ingest_windows` — it keeps a single request in flight, completes
+each one via the DLL's progress callback (`Event.HISTORY_PROGRESS`, progress
+reaching 100), and discards trades outside the current request's window:
+
+```python
+from profitdll_wrapper.ingest import ingest_windows
+
+with ProfitClient(activation_key="...", user="...", password="...") as client:
+    stats = ingest_windows(
+        client=client,
+        sink=sink,
+        tickers=[
+            ("PETR4", "B", "27/08/2026 10:00:00", "27/08/2026 16:55:00"),
+            ("PETR4", "B", "02/09/2026 10:00:00", "02/09/2026 16:55:00"),
+        ],
+    )
+    for req in stats.tickers:
+        print(req.ticker, req.trades_written, "completed_by_progress =", req.completed_by_progress)
+```
+
+See the [ingestion guide](https://diogojrdev.github.io/profitdll-wrapper/INGEST/) for schema details, hypertables, idempotency, tuning, and the multi-window contract, and [`examples/09_historical_to_database.py`](examples/09_historical_to_database.py) for a runnable end-to-end example.
+
+---
+
+## Limitations
+
+- **The native DLL supports a single lifecycle per process.** After
+  `disconnect()` (which calls `DLLFinalize`), constructing a new `ProfitClient`
+  in the same process raises
+  `RuntimeError("ProfitDLL já foi finalizada neste processo; ...")`
+  immediately — the DLL's global state survives `DLLFinalize` (the Windows
+  loader ref-counts the module) and a re-initialization never completes its
+  market-data connection. The vendor manual documents no re-initialization
+  support. **Run one session per subprocess** when you need multiple
+  sequential sessions (the same pattern the integration tests use).
+- **`ingest_history` is one-window-per-run by contract**: every ticker shares
+  `start_date`/`end_date` and all requests are fired up front. The historical
+  trade event carries no window attribution, so stacking runs with different
+  windows on one session contaminates tapes with late responses (a real
+  production incident). Use [`ingest_windows`](#historical-data--database) for
+  per-ticker windows.
+- **History is capped at 30 days by the server**: requests whose start date is
+  older than 30 days (server date) are rejected with
+  `HistoryPeriodLimitError`. Split longer backfills into ≤30-day windows.
 
 ---
 

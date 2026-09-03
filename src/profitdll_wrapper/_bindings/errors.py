@@ -6,6 +6,7 @@ Hierarchical exception tree:
     ├── ProfitAPIError(code)          — Exceptions with an NL_* error code
     │   ├── AuthError                 — Authentication/license/login failures
     │   ├── InvalidArgumentError      — Invalid tickers, parameters, or dates
+    │   │   └── HistoryPeriodLimitError — History start older than 30 days
     │   └── ServerStateError          — Server state issues
     ├── ProfitConnectionError               — Connection timeouts / network failures
     └── PlatformNotSupportedError     — OS or architecture incompatibility
@@ -88,6 +89,15 @@ class InvalidArgumentError(ProfitAPIError):
     """Raised when invalid parameters (ticker, dates) are supplied."""
 
 
+class HistoryPeriodLimitError(InvalidArgumentError):
+    """Raised when a historical request exceeds the 30-day server limit.
+
+    Maps ``NL_HISTORY_PERIOD_LIMIT``: the server rejects requests whose start
+    date is older than 30 days relative to the current server date. Split the
+    range into <=30-day windows to backfill further back.
+    """
+
+
 class ServerStateError(ProfitAPIError):
     """Raised when server is not in expected state to handle request."""
 
@@ -101,7 +111,7 @@ _CODE_TO_EXC: Final[dict[int, type[ProfitAPIError]]] = {
     int(NLCode.LICENSE_NOT_ALLOWED): AuthError,
     int(NLCode.INVALID_ARGS): InvalidArgumentError,
     int(NLCode.INVALID_TICKER): InvalidArgumentError,
-    int(NLCode.HISTORY_PERIOD_LIMIT): InvalidArgumentError,
+    int(NLCode.HISTORY_PERIOD_LIMIT): HistoryPeriodLimitError,
     int(NLCode.OUT_OF_RANGE): InvalidArgumentError,
     int(NLCode.WAITING_SERVER): ServerStateError,
 }

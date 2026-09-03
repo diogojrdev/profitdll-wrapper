@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from datetime import datetime
 from typing import Any
 
 from profitdll_wrapper._bindings.enums import (
@@ -56,6 +57,7 @@ class FakeProfitBackend:
         self.state_callback: Any = None
         self.trade_callback: Any = None
         self.daily_callback: Any = None
+        self.progress_callback: Any = None
         self.price_depth_callback: Any = None
         self.order_change_callback: Any = None
         self.order_callback: Any = None
@@ -171,12 +173,15 @@ class FakeProfitBackend:
         state_callback: object,
         daily_callback: object,
         order_change_callback: object = None,
+        progress_callback: object = None,
     ) -> int:
         self.initialize_calls.append("routing")
         self.state_callback = state_callback
         self.daily_callback = daily_callback
         if order_change_callback is not None:
             self.order_change_callback = order_change_callback
+        if progress_callback is not None:
+            self.progress_callback = progress_callback
         if self.initialize_result == int(NLCode.OK):
             self._emit_connect_states()
         return self.initialize_result
@@ -188,10 +193,13 @@ class FakeProfitBackend:
         password: str,
         state_callback: object,
         daily_callback: object,
+        progress_callback: object = None,
     ) -> int:
         self.initialize_calls.append("market_data")
         self.state_callback = state_callback
         self.daily_callback = daily_callback
+        if progress_callback is not None:
+            self.progress_callback = progress_callback
         if self.initialize_result == int(NLCode.OK):
             self._emit_connect_states()
         return self.initialize_result
@@ -230,6 +238,7 @@ class FakeProfitBackend:
         out_trade.BuyAgent = src.BuyAgent
         out_trade.SellAgent = src.SellAgent
         out_trade.TradeType = src.TradeType
+        out_trade.TradeDate = src.TradeDate
         return int(NLCode.OK)
 
     # ---- Price Depth (P1) ---- #
@@ -746,6 +755,11 @@ class FakeProfitBackend:
             self.history_trade_callback = callback
         return int(NLCode.OK)
 
+    def set_serie_progress_callback(self, callback: object) -> int:
+        with self._lock:
+            self.progress_callback = callback if callback is not None else None
+        return int(NLCode.OK)
+
     def get_history_trades(self, ticker: str, exchange: str, start: str, end: str) -> int:
         with self._lock:
             self.history_trade_requests.append((ticker, exchange, start, end))
@@ -777,11 +791,14 @@ class FakeProfitBackend:
         side: int = 1,
         trade_id: int = 1,
         flags: int = 0,
+        when: datetime | None = None,
     ) -> None:
-        """Emits a historical trade via history_trade_callback in tests."""
-        from datetime import datetime
+        """Emits a historical trade via history_trade_callback in tests.
 
-        now = datetime.now()
+        ``when`` overrides the trade timestamp (naive B3 local) so window
+        filtering can be exercised deterministically; defaults to now().
+        """
+        now = when or datetime.now()
         raw = TConnectorTrade()
         raw.Version = 0
         raw.TradeNumber = trade_id
@@ -805,6 +822,21 @@ class FakeProfitBackend:
 
         if cb is not None:
             cb(asset_id, trade_id, flags)
+
+    def emit_history_progress(self, ticker: str, exchange: str, progress: int) -> None:
+        """Dispara o callback de progresso (TProgressCallback) em testes."""
+        from ctypes import c_wchar_p
+
+        from profitdll_wrapper._bindings.structures import TAssetID
+
+        raw = TAssetID()
+        raw.ticker = c_wchar_p(ticker)
+        raw.bolsa = c_wchar_p(exchange)
+
+        with self._lock:
+            cb = self.progress_callback
+        if cb is not None:
+            cb(raw, progress)
 
     def subscribe_adjust_history(self, ticker: str, exchange: str) -> int:
         with self._lock:

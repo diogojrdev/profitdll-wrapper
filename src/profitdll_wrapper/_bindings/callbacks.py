@@ -53,6 +53,11 @@ from profitdll_wrapper._bindings.structures import (
 # Reports connection, login, routing, market data, and activation states.
 TStateCallback = WINFUNCTYPE(None, c_int32, c_int32)
 
+# Progress Callback: (asset_id, progress) -> None.
+# Historical-request download progress per asset (0-100 per the TProgressCallback
+# docs; GetHistoryTrades documents "from 1 to 100" — 100 means request complete).
+TProgressCallback = WINFUNCTYPE(None, TAssetID, c_int32)
+
 # V2 Trade Callback: (asset_id, p_trade, flags) -> None.
 # p_trade is an opaque handle (c_size_t) passed to TranslateTrade.
 TTradeCallbackV2 = WINFUNCTYPE(None, TConnectorAssetIdentifier, c_size_t, c_uint)
@@ -253,6 +258,7 @@ __all__ = [
     "TOfferBookCallbackV2",
     "TOrderChangeCallbackV2",
     "TPriceDepthCallback",
+    "TProgressCallback",
     "TStateCallback",
     "TSystemHealthCallback",
     "TTradeCallbackV2",

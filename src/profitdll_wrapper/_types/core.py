@@ -76,6 +76,10 @@ class Trade:
         trade_type: Trade type classification.
         timestamp: Execution timestamp.
         is_edit: True if trade is a correction of a previous trade.
+        last_packet: True on the final trade of a history request
+            (TC_LAST_PACKET flag of SetHistoryTradeCallbackV2, vendor manual).
+            Informational only — do not treat it as the sole completion signal
+            for requests that return zero trades.
     """
 
     asset: AssetId
@@ -88,6 +92,7 @@ class Trade:
     trade_type: int
     timestamp: datetime
     is_edit: bool
+    last_packet: bool = False
 
     @property
     def date(self) -> datetime:
@@ -101,6 +106,7 @@ class Trade:
         raw: TConnectorTrade,
         *,
         is_edit: bool = False,
+        last_packet: bool = False,
     ) -> Trade:
         """Constructs Trade instance from translated native TConnectorTrade."""
         return cls(
@@ -114,6 +120,7 @@ class Trade:
             trade_type=int(raw.TradeType),
             timestamp=_systemtime_to_datetime(raw.TradeDate),
             is_edit=is_edit,
+            last_packet=last_packet,
         )
 
 

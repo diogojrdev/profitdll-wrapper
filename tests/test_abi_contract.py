@@ -27,6 +27,7 @@ from unittest.mock import MagicMock
 from profitdll_wrapper._bindings.callbacks import (
     TDailyCallback,
     TPriceDepthCallback,
+    TProgressCallback,
     TStateCallback,
     TTradeCallbackV2,
 )
@@ -180,6 +181,12 @@ class TestABICallbackSignatures:
         assert list(TDailyCallback._argtypes_) == expected
         assert TDailyCallback._restype_ is None
 
+    def test_progress_callback_argtypes(self) -> None:
+        # Manual (§3.2): TProgressCallback = procedure(rAssetID: TAssetIDRec;
+        # nProgress: Integer) stdcall.
+        assert list(TProgressCallback._argtypes_) == [TAssetID, c_int32]
+        assert TProgressCallback._restype_ is None
+
 
 class TestABIFunctionBindings:
     """Verifica se bind(mock_lib) configura argtypes/restype conforme vendor."""
@@ -200,7 +207,7 @@ class TestABIFunctionBindings:
             c_wchar_p,
             c_wchar_p,
             c_wchar_p,
-            c_wchar_p,
+            TProgressCallback,
             c_wchar_p,
         ]
         assert mock_lib.DLLInitializeMarketLogin.restype == c_int
@@ -219,7 +226,7 @@ class TestABIFunctionBindings:
             c_wchar_p,
             c_wchar_p,
             c_wchar_p,
-            c_wchar_p,
+            TProgressCallback,
             c_wchar_p,
         ]
         assert mock_lib.DLLInitializeLogin.restype == c_int
@@ -227,6 +234,10 @@ class TestABIFunctionBindings:
         # DLLFinalize
         assert mock_lib.DLLFinalize.argtypes == []
         assert mock_lib.DLLFinalize.restype == c_int
+
+        # SetSerieProgressCallback
+        assert mock_lib.SetSerieProgressCallback.argtypes == [TProgressCallback]
+        assert mock_lib.SetSerieProgressCallback.restype == c_int
 
         # SubscribeTicker / UnsubscribeTicker
         assert mock_lib.SubscribeTicker.argtypes == [c_wchar_p, c_wchar_p]

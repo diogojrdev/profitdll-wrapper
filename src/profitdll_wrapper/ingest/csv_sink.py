@@ -45,6 +45,8 @@ class CsvSink(BufferedSink):
         output_dir: Directory where output files are written (created if missing).
         format: ``"csv"`` (stdlib) or ``"parquet"`` (requires the ``parquet`` extra).
         batch_size: Buffer size before an automatic flush.
+        assume_b3_local: See
+            :class:`~profitdll_wrapper.ingest._base.BufferedSink`.
     """
 
     def __init__(
@@ -53,8 +55,9 @@ class CsvSink(BufferedSink):
         *,
         format: str = "csv",
         batch_size: int = 500,
+        assume_b3_local: bool = False,
     ) -> None:
-        super().__init__(batch_size=batch_size)
+        super().__init__(batch_size=batch_size, assume_b3_local=assume_b3_local)
         self._format = format.strip().lower()
         if self._format not in ("csv", "parquet"):
             msg = f"Unsupported file format {format!r}; expected 'csv' or 'parquet'."

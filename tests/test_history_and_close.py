@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from profitdll_wrapper import Event, ProfitClient, Trade
+from profitdll_wrapper import Event, HistoryProgress, ProfitClient, Trade
 from profitdll_wrapper._bindings.enums import MARKET_DATA_STATES
 from profitdll_wrapper._bindings.structures import TConnectorAssetIdentifier
 from tests.fakes.backend import FakeProfitBackend
@@ -82,3 +82,70 @@ def test_get_history_trades_request_and_event(
         assert trades[0].asset.ticker == "VALE3"
         assert trades[0].price == 62.50
         assert trades[0].quantity == 500
+
+
+def test_history_progress_event_flow(client: ProfitClient, fake_backend: FakeProfitBackend) -> None:
+    """P0-1: o callback TProgressCallback chega como Event.HISTORY_PROGRESS."""
+    events: list[HistoryProgress] = []
+
+    @client.on(Event.HISTORY_PROGRESS)
+    def on_progress(evt: HistoryProgress) -> None:
+        events.append(evt)
+
+    with client:
+        # O callback precisa ter sido capturado na inicialização (mesmo lugar
+        # de state/daily) — sem connect() ele não existiria.
+        assert fake_backend.progress_callback is not None
+
+        fake_backend.emit_history_progress("VALE3", "B", 42)
+        fake_backend.emit_history_progress("VALE3", "B", 100)
+        time.sleep(0.2)
+
+    assert [(e.asset.ticker, e.asset.exchange, e.progress) for e in events] == [
+        ("VALE3", "B", 42),
+        ("VALE3", "B", 100),
+    ]
+
+
+def test_history_trade_carries_last_packet_flag(
+    client: ProfitClient, fake_backend: FakeProfitBackend
+) -> None:
+    """O flag TC_LAST_PACKET (SetHistoryTradeCallbackV2) chega no Trade."""
+    from profitdll_wrapper._bindings.callbacks import TC_LAST_PACKET
+
+    trades: list[Trade] = []
+
+    @client.on(Event.HISTORICAL_TRADE)
+    def on_hist_trade(t: Trade) -> None:
+        trades.append(t)
+
+    with client:
+        asset = TConnectorAssetIdentifier()
+        asset.Version = 0
+        asset.Ticker = "VALE3"
+        asset.Exchange = "B"
+
+        fake_backend.emit_history_trade(asset, "", price=62.50, qty=100, trade_id=7, flags=0)
+        fake_backend.emit_history_trade(
+            asset, "", price=63.00, qty=100, trade_id=8, flags=TC_LAST_PACKET
+        )
+        time.sleep(0.2)
+
+    assert [t.last_packet for t in trades] == [False, True]
+
+
+def test_client_off_removes_handler(client: ProfitClient, fake_backend: FakeProfitBackend) -> None:
+    """P1-2: client.off remove o handler registrado via decorator."""
+    events: list[HistoryProgress] = []
+
+    def on_progress(evt: HistoryProgress) -> None:
+        events.append(evt)
+
+    client.on(Event.HISTORY_PROGRESS)(on_progress)
+    client.off(Event.HISTORY_PROGRESS, on_progress)
+
+    with client:
+        fake_backend.emit_history_progress("VALE3", "B", 10)
+        time.sleep(0.2)
+
+    assert events == []

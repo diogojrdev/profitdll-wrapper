@@ -44,6 +44,19 @@ def _hermetic_broker(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("BROKER", raising=False)
 
 
+@pytest.fixture(autouse=True)
+def _fresh_dll_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Resets the process-wide "DLL already finalized" guard between tests.
+
+    The guard is module state by design (the native DLL lifecycle is per
+    process), but a test that finalizes a (mocked) backend must not poison
+    the next test's get_backend() call.
+    """
+    import profitdll_wrapper._bindings.functions as functions_module
+
+    monkeypatch.setattr(functions_module, "_dll_finalized", False)
+
+
 @pytest.fixture
 def fake_backend() -> FakeProfitBackend:
     """Pre-configured fake backend fixture configured to connect successfully in market_data mode."""

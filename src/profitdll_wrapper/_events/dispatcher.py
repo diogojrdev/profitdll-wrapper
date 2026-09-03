@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 from dataclasses import dataclass
@@ -10,7 +11,7 @@ from threading import Event, Thread
 from typing import TYPE_CHECKING, ClassVar
 
 from profitdll_wrapper._bindings.enums import SystemHealthState
-from profitdll_wrapper._types.messages import AdjustHistory, InvalidTickerEvent
+from profitdll_wrapper._types.messages import AdjustHistory, HistoryProgress, InvalidTickerEvent
 from profitdll_wrapper._types.models import (
     Account,
     AssetInfo,
@@ -59,6 +60,9 @@ class EventDispatcher:
         self._handlers: dict[str, list[Callable[[object], None]]] = {}
         self._thread: Thread | None = None
         self._stop_evt: Event = Event()
+        # Only interrupts run() wait loops; leaves the dispatch thread pumping
+        # (unlike stop()), so a session can outlive a blocking run() call.
+        self._run_stop_evt: Event = Event()
         self._running = False
 
     def on(self, event: str) -> Callable[[Callable[..., None]], None]:
@@ -72,6 +76,19 @@ class EventDispatcher:
     def add_handler(self, event: str, fn: Callable[..., None]) -> None:
         """Imperative method to add an event handler callback."""
         self._handlers.setdefault(event, []).append(fn)
+
+    def remove_handler(self, event: str, fn: Callable[..., None]) -> None:
+        """Removes one registration of ``fn`` from ``event`` (idempotent).
+
+        Inverse of :meth:`add_handler` / :meth:`on`: safe to call when the
+        handler is not registered (no-op), and a handler registered twice is
+        removed one occurrence per call.
+        """
+        handlers = self._handlers.get(event)
+        if not handlers:
+            return
+        with contextlib.suppress(ValueError):
+            handlers.remove(fn)
 
     def enqueue_trade(self, trade: Trade) -> None:
         """Enqueues a trade event (thread-safe)."""
@@ -121,6 +138,10 @@ class EventDispatcher:
         """Enqueues a historical trade event (thread-safe)."""
         self._queue.put(("HISTORICAL_TRADE", trade))
 
+    def enqueue_history_progress(self, progress: HistoryProgress) -> None:
+        """Enqueues a historical-request download progress event (thread-safe)."""
+        self._queue.put(("HISTORY_PROGRESS", progress))
+
     def enqueue_adjust_history(self, adjust: AdjustHistory) -> None:
         """Enqueues a corporate action / adjustment history event (thread-safe)."""
         self._queue.put(adjust)
@@ -149,6 +170,7 @@ class EventDispatcher:
         """
         self._running = False
         self._stop_evt.set()
+        self._run_stop_evt.set()
         self._queue.put(_STOP)
 
         thread = self._thread
@@ -163,12 +185,27 @@ class EventDispatcher:
                     _JOIN_TIMEOUT_SECONDS,
                 )
 
+    def stop_run(self) -> None:
+        """Unblocks any thread waiting inside :meth:`run` without stopping the
+        dispatch thread.
+
+        Unlike :meth:`stop`, the dispatcher keeps pumping events afterwards, so
+        the session stays usable for another run (see ``ProfitClient.interrupt_run``).
+        """
+        self._run_stop_evt.set()
+
     def run(self) -> None:
-        """Blocks calling thread until stop() or KeyboardInterrupt."""
+        """Blocks calling thread until stop()/stop_run() or KeyboardInterrupt.
+
+        This is a keep-alive wait loop only: it does not pump events. Events
+        are delivered by the dispatcher thread started by ``start()`` (which
+        ``connect()`` already started for ProfitClient users).
+        """
+        self._run_stop_evt.clear()
         self.start()
         try:
-            while self._running:
-                self._stop_evt.wait(timeout=0.2)
+            while self._running and not self._run_stop_evt.is_set():
+                self._run_stop_evt.wait(timeout=0.2)
         except KeyboardInterrupt:
             self.stop()
             raise

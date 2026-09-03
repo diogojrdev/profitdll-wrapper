@@ -171,6 +171,20 @@ class AdjustHistory:
 
 
 @dataclass(frozen=True, slots=True)
+class HistoryProgress:
+    """Historical-request download progress event (TProgressCallback).
+
+    Attributes:
+        asset: Asset the history request refers to.
+        progress: Download progress percent (0-100; 100 means the request
+            finished — the manual states "from 1 to 100" for GetHistoryTrades).
+    """
+
+    asset: AssetId
+    progress: int
+
+
+@dataclass(frozen=True, slots=True)
 class InvalidTickerEvent:
     """Event triggered when requested ticker or exchange is rejected as invalid.
 
@@ -185,6 +199,7 @@ __all__ = [
     "AdjustHistory",
     "AssetInfo",
     "DailyCandle",
+    "HistoryProgress",
     "InvalidTickerEvent",
     "TickerStateChange",
     "TradingMessageResult",

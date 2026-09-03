@@ -10,8 +10,10 @@ final ``close`` semantics.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
+from profitdll_wrapper._timeutils import b3_local_to_utc
 from profitdll_wrapper._types.messages import DailyCandle
 from profitdll_wrapper._types.models import Trade
 from profitdll_wrapper.ingest.schema import candle_to_row, trade_to_row
@@ -23,15 +25,25 @@ if TYPE_CHECKING:
 class BufferedSink:
     """Base class providing batch buffering for sinks.
 
-    Subclasses MUST call ``super().__init__(batch_size)`` and implement
+    Subclasses MUST call ``super().__init__(...)`` and implement
     :meth:`_flush_trades` and :meth:`_flush_candles`.
+
+    Args:
+        batch_size: Number of records buffered before an automatic flush.
+        assume_b3_local: When True, naive trade timestamps (the DLL's B3 local
+            times) are converted to timezone-aware UTC before persisting, so
+            multi-day tapes line up without a per-consumer ``UtcSink``
+            subclass. Aware timestamps pass through unchanged. Daily candle
+            dates are plain dates and are never converted. Defaults to False
+            (legacy behavior: naive values stored as-is).
     """
 
-    def __init__(self, batch_size: int = 500) -> None:
+    def __init__(self, batch_size: int = 500, *, assume_b3_local: bool = False) -> None:
         if batch_size < 1:
             msg = f"batch_size must be >= 1, got {batch_size}"
             raise ValueError(msg)
         self._batch_size = batch_size
+        self._assume_b3_local = assume_b3_local
         self._trade_buffer: list[tuple[object, ...]] = []
         self._candle_buffer: list[tuple[object, ...]] = []
         self._closed = False
@@ -41,6 +53,8 @@ class BufferedSink:
     # ------------------------------------------------------------------ #
     def write_trade(self, trade: Trade) -> None:
         self._ensure_open()
+        if self._assume_b3_local and trade.timestamp.tzinfo is None:
+            trade = replace(trade, timestamp=b3_local_to_utc(trade.timestamp))
         self._trade_buffer.append(trade_to_row(trade))
         if len(self._trade_buffer) >= self._batch_size:
             self._flush_trades(self._trade_buffer)

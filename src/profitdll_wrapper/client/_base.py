@@ -70,6 +70,7 @@ class _ClientBase:
     _change_state_ticker_cb: object
     _health_cb: object
     _history_trade_cb: object
+    _progress_cb: object
     _adjust_history_v2_cb: object
     _invalid_ticker_cb: object
 

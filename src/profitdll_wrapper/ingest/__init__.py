@@ -9,13 +9,27 @@ Public surface:
 
 * :class:`DataSink` — the sink protocol every backend implements.
 * :func:`create_sink` — factory dispatching by backend name.
-* :func:`ingest_history` — orchestrates a ProfitClient + sink ingestion run.
-* :class:`IngestStats` — summary of a completed run.
+* :func:`ingest_history` — one shared window for all tickers (legacy contract).
+* :func:`ingest_windows` — serial multi-window runner (one request in flight,
+  per-ticker windows, completion via the DLL progress callback).
+* :class:`IngestStats` / :class:`TickerStats` — summary of a completed run.
 """
 
 from __future__ import annotations
 
-from profitdll_wrapper.ingest.runner import IngestStats, ingest_history
+from profitdll_wrapper.ingest.runner import (
+    IngestStats,
+    TickerStats,
+    ingest_history,
+    ingest_windows,
+)
 from profitdll_wrapper.ingest.sink import DataSink, create_sink
 
-__all__ = ["DataSink", "IngestStats", "create_sink", "ingest_history"]
+__all__ = [
+    "DataSink",
+    "IngestStats",
+    "TickerStats",
+    "create_sink",
+    "ingest_history",
+    "ingest_windows",
+]

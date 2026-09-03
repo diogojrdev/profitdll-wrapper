@@ -11,6 +11,8 @@ import sqlite3
 import time
 from pathlib import Path
 
+import pytest
+
 from profitdll_wrapper import ProfitClient
 from profitdll_wrapper._bindings.structures import TConnectorAssetIdentifier
 from profitdll_wrapper.ingest import IngestStats, create_sink, ingest_history
@@ -171,3 +173,127 @@ def test_create_sink_factory_in_module(tmp_path: Path) -> None:
     sink = create_sink("sqlite", db_url=str(tmp_path / "factory.db"))
     sink.close()
     assert isinstance(sink, SqliteSink)
+
+
+def test_ingest_history_first_event_timeout_marks_empty(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A ticker the DLL never answers is flagged empty with a warning.
+
+    Regression guard for the watchdog bug where a queued-but-unserved request
+    was silently marked complete after ``inactivity_timeout`` without ever
+    receiving a single event.
+    """
+    import logging
+
+    backend = _make_backend()
+    client = ProfitClient(mode="market_data", backend=backend, **_FAKE_CREDS)
+    sink = SqliteSink(db_url=str(tmp_path / "empty.db"), batch_size=1)
+
+    with client, caplog.at_level(logging.WARNING, logger="profitdll_wrapper.ingest"):
+        stats = ingest_history(
+            client=client,
+            sink=sink,
+            tickers=[("PETR4", "B")],
+            start_date="01/08/2026 09:00:00",
+            end_date="04/08/2026 18:00:00",
+            inactivity_timeout=10.0,
+            first_event_timeout=0.5,
+            max_timeout=20.0,
+        )
+    sink.close()
+
+    ts = stats.tickers[0]
+    assert ts.empty is True
+    assert ts.trades_written == 0
+    assert ts.completed_by_progress is False
+    assert any("no trades, candles or progress" in rec.message.lower() for rec in caplog.records)
+
+
+def test_ingest_history_completes_by_progress(tmp_path: Path) -> None:
+    """Progress reaching 100 completes the ticker (with a short drain)."""
+    import threading
+
+    backend = _make_backend()
+    client = ProfitClient(mode="market_data", backend=backend, **_FAKE_CREDS)
+    sink = SqliteSink(db_url=str(tmp_path / "progress.db"), batch_size=1)
+
+    with client:
+
+        def _emit() -> None:
+            time.sleep(0.2)
+            backend.emit_history_progress("PETR4", "B", 100)
+
+        threading.Thread(target=_emit, daemon=True).start()
+        stats = ingest_history(
+            client=client,
+            sink=sink,
+            tickers=[("PETR4", "B")],
+            start_date="01/08/2026 09:00:00",
+            end_date="04/08/2026 18:00:00",
+            inactivity_timeout=0.5,
+            first_event_timeout=10.0,
+            max_timeout=10.0,
+        )
+    sink.close()
+
+    ts = stats.tickers[0]
+    assert ts.completed_by_progress is True
+    assert ts.empty is False
+
+
+def test_ingest_history_twice_does_not_duplicate_writes(tmp_path: Path) -> None:
+    """Handlers are removed at the end of each run (client.off)."""
+    import threading
+
+    backend = _make_backend()
+    client = ProfitClient(mode="market_data", backend=backend, **_FAKE_CREDS)
+    db = tmp_path / "twice.db"
+    sink = SqliteSink(db_url=str(db), batch_size=10)
+
+    def _emit_later() -> None:
+        time.sleep(0.2)
+        asset = _asset_id("PETR4", "B")
+        for i in range(3):
+            backend.emit_history_trade(
+                asset, "2026-08-01 10:00:00", price=38.0, qty=100, trade_id=i + 1
+            )
+        backend.emit_history_progress("PETR4", "B", 100)
+
+    with client:
+        emitter = threading.Thread(target=_emit_later, daemon=True)
+        emitter.start()
+        first = ingest_history(
+            client=client,
+            sink=sink,
+            tickers=[("PETR4", "B")],
+            start_date="01/08/2026 09:00:00",
+            end_date="04/08/2026 18:00:00",
+            inactivity_timeout=0.5,
+            stop_client=False,
+        )
+        # Session must still be pumping after a non-stopping run.
+        assert client._dispatcher._thread is not None
+        assert client._dispatcher._thread.is_alive()
+
+        emitter2 = threading.Thread(target=_emit_later, daemon=True)
+        emitter2.start()
+        second = ingest_history(
+            client=client,
+            sink=sink,
+            tickers=[("PETR4", "B")],
+            start_date="01/08/2026 09:00:00",
+            end_date="04/08/2026 18:00:00",
+            inactivity_timeout=0.5,
+        )
+    sink.close()
+
+    assert first.trades_written == 3
+    assert second.trades_written == 3
+
+    conn = sqlite3.connect(db)
+    try:
+        count = conn.execute('SELECT COUNT(*) FROM "trades"').fetchone()[0]
+    finally:
+        conn.close()
+    assert count == 3, f"expected 3 rows (no duplicate handlers), got {count}"

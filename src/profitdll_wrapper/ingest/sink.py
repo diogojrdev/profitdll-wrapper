@@ -57,6 +57,7 @@ def create_sink(
     db_url: str | None = None,
     output_dir: Path | str | None = None,
     batch_size: int = 500,
+    assume_b3_local: bool = False,
 ) -> DataSink:
     """Builds a sink for the requested backend.
 
@@ -67,6 +68,9 @@ def create_sink(
             ``./profit_data.db``. For PostgreSQL use a libpq URL.
         output_dir: Directory for ``csv``/``parquet`` output (created if missing).
         batch_size: Number of records buffered before an automatic flush.
+        assume_b3_local: Convert naive B3-local trade timestamps to aware UTC
+            before persisting (see
+            :class:`~profitdll_wrapper.ingest._base.BufferedSink`).
 
     Raises:
         ValueError: If ``backend`` is not recognized.
@@ -81,19 +85,30 @@ def create_sink(
     if name == "sqlite":
         from profitdll_wrapper.ingest.sqlite_sink import SqliteSink
 
-        return SqliteSink(db_url=db_url or "sqlite:///./profit_data.db", batch_size=batch_size)
+        return SqliteSink(
+            db_url=db_url or "sqlite:///./profit_data.db",
+            batch_size=batch_size,
+            assume_b3_local=assume_b3_local,
+        )
 
     if name == "csv":
         from profitdll_wrapper.ingest.csv_sink import CsvSink
 
         out = Path(output_dir) if output_dir is not None else Path("./data")
-        return CsvSink(output_dir=out, format="csv", batch_size=batch_size)
+        return CsvSink(
+            output_dir=out, format="csv", batch_size=batch_size, assume_b3_local=assume_b3_local
+        )
 
     if name == "parquet":
         from profitdll_wrapper.ingest.csv_sink import CsvSink
 
         out = Path(output_dir) if output_dir is not None else Path("./data")
-        return CsvSink(output_dir=out, format="parquet", batch_size=batch_size)
+        return CsvSink(
+            output_dir=out,
+            format="parquet",
+            batch_size=batch_size,
+            assume_b3_local=assume_b3_local,
+        )
 
     # name == "postgres"
     from profitdll_wrapper.ingest.postgres_sink import PostgresSink
@@ -101,7 +116,7 @@ def create_sink(
     if not db_url:
         msg = "PostgreSQL sink requires db_url (e.g. postgresql://user:pass@host/db)"
         raise ValueError(msg)
-    return PostgresSink(db_url=db_url, batch_size=batch_size)
+    return PostgresSink(db_url=db_url, batch_size=batch_size, assume_b3_local=assume_b3_local)
 
 
 __all__ = ["DataSink", "create_sink"]

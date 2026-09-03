@@ -1,6 +1,6 @@
 # profitdll-wrapper Documentation Overview
 
-> **Status:** Initial public release (v0.1.0, alpha). This directory contains the architectural specifications, API audits, and design blueprints for `profitdll-wrapper`.
+> **Status:** v0.4.0 — market data, price depth, order routing, custody and the historical-ingestion stack (progress-callback completion, multi-window runner). This directory contains the architectural specifications, API audits, and design blueprints for `profitdll-wrapper`.
 >
 > **Independent community project** — not affiliated with or endorsed by Nelogica. Provided "as is" with no financial liability for trading outcomes; see the disclaimer in the [project README](https://github.com/diogojrdev/profitdll-wrapper#readme).
 

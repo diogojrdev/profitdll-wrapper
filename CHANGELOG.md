@@ -7,6 +7,108 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-03
+
+Multi-window ingestion release: real per-asset completion via the vendor
+progress callback, a serial multi-window runner, and a fast, clear failure on
+the native DLL's single-lifecycle-per-process limitation. Driven by gaps
+found while building a multi-window tape synchronizer on top of the wrapper
+(one production incident: one day's tape recorded with another day's trades).
+
+### Added
+
+- **`Event.HISTORY_PROGRESS` — the vendor `TProgressCallback` is now bound**
+  (manual §3.2: `procedure(rAssetID: TAssetIDRec; nProgress: Integer) stdcall`).
+  The callback is registered at initialization (the same `DLLInitializeLogin` /
+  `DLLInitializeMarketLogin` slot that already carried state/daily — manual:
+  *"Progress callback for some historical request"*) and re-asserted through
+  `SetSerieProgressCallback` (manual: overrides the initialization callback).
+  Handlers receive a `HistoryProgress(asset, progress)` dataclass; per
+  `GetHistoryTrades` docs, *"The TProgressCallback will return the download
+  progress (from 1 to 100)"* — reaching 100 is the request-completion signal
+  consumed by the ingest runners (treated defensively as `>= 100`, since the
+  manual also says "(0-100)" in the callback table).
+- **`ingest_windows()` — serial multi-window runner**: one request in flight
+  at a time, each entry `(ticker, exchange, start_date, end_date)` with its
+  own window. Completion per request is driven by progress == 100 (plus a
+  short inactivity drain), with `first_event_timeout` / `inactivity_timeout` /
+  `request_timeout` / `max_timeout` fallbacks. Trades outside the current
+  request's window are discarded and counted (`discarded_out_of_window`);
+  late answers belonging to previous requests are discarded as strays
+  (`discarded_stray`) — closing the cross-window contamination vector that
+  the fire-all runner cannot defend against.
+- **`TickerStats` completeness fields** (additive): `completed_by_progress`,
+  `empty`, `timed_out`, `discarded_out_of_window`, `discarded_stray`.
+  `ingest_history` also reports them; `trades_written == 0` is now
+  distinguishable from "the request never drained" (`empty=True`).
+- **`first_event_timeout` (default 60s)** in both runners, separate from
+  `inactivity_timeout`: a ticker whose response never starts is marked
+  `empty` with a `logger.warning` instead of being silently declared
+  complete after the inactivity window (queued-in-the-DLL ≠ finished).
+- **`client.off(event, fn)`** (and `EventDispatcher.remove_handler`):
+  idempotent handler removal. The ingest runners now remove their handlers
+  when they finish, so calling `ingest_history`/`ingest_windows` twice on
+  the same client no longer duplicates every write.
+- **`stop_client: bool = True`** in both runners; `False` keeps the session
+  alive for another run (new `ProfitClient.interrupt_run()` unblocks `run()`
+  without stopping event delivery; `EventDispatcher.stop_run()` is the
+  low-level counterpart).
+- **`HistoryPeriodLimitError`** (subclass of `InvalidArgumentError`) raised
+  for `NL_HISTORY_PERIOD_LIMIT`: the server rejects requests whose start
+  date is older than 30 days — the message says so explicitly.
+- **B3↔UTC helpers**: `b3_local_to_utc()` / `B3_TZ` exported from the
+  package root, and every sink (plus `create_sink`) accepts
+  `assume_b3_local=True` to convert naive B3-local trade timestamps to aware
+  UTC before persisting — no more per-consumer `UtcPostgresSink` subclasses.
+  Falls back to the fixed UTC-03:00 offset when the IANA tz database is
+  unavailable (exact for all dates since Brazil abolished DST in 2019; the
+  server caps history at 30 days anyway).
+- **`PostgresSink(connection=...)`**: reuse an existing psycopg3 connection
+  (e.g. one per process across multi-group runs); borrowed connections are
+  never closed by the sink. `db_url` stays positional-compatible.
+- `Trade.last_packet` (bool): the `TC_LAST_PACKET` flag of
+  `SetHistoryTradeCallbackV2` (*"indicating the last trade of that particular
+  history"*, manual) is surfaced on the model — informational only.
+
+### Fixed
+
+- **Second DLL lifecycle in one process now fails immediately** with
+  `RuntimeError("ProfitDLL já foi finalizada neste processo; a DLL nativa
+  suporta um único ciclo de vida — use um subprocesso por sessão")` instead
+  of the previous misleading 30s `Connection wait timeout. Pending domains:
+  MARKET_DATA`. Root cause: `ctypes.WinDLL` on the same path returns the
+  already-loaded module (Windows loader ref-counts it), so the DLL's global
+  state survives `DLLFinalize` and a re-init never completes MARKET_DATA.
+  The manual documents no re-initialization support, so the wrapper refuses
+  the second cycle outright (`get_backend()` checks the guard before even
+  loading the DLL; a failed `DLLFinalize` does not arm it).
+- **Watchdog no longer mistakes "queued" for "finished"** (see
+  `first_event_timeout` above). Previously `last_activity` started at
+  run start, so a ticker whose response was still queued in the DLL was
+  declared complete after `inactivity_timeout` without ever receiving an
+  event — silent data loss.
+- `run()` docstring no longer implies it pumps events: it is a keep-alive
+  wait loop; the dispatcher thread started by `connect()` delivers handlers.
+
+### Documentation
+
+- README gains a **Limitations** section (single DLL lifecycle per process —
+  use one subprocess per session; `ingest_history` is one-window-per-run by
+  contract, use `ingest_windows` for per-ticker windows) and the stale
+  "v0.1.0 alpha" status line was updated.
+- `docs/INGEST.md`: new multi-window section, progress-based completion,
+  the new timeouts, `stop_client`, `off`, `assume_b3_local` and external
+  Postgres connections.
+
+### Compatibility
+
+`ingest_history`, `PostgresSink`, `ProfitClient` and `load_credentials`
+keep their signatures and semantics (new parameters are keyword-only with
+defaults preserving previous behavior). The single intentional behavior
+change: tickers that never receive any event now take up to
+`first_event_timeout` (60s default) to be flagged `empty` + warning,
+whereas before they were silently marked complete at `inactivity_timeout`.
+
 ## [0.3.0] - 2026-09-02
 
 ### Fixed

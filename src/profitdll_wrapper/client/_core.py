@@ -79,6 +79,7 @@ class Event(str, Enum):
     TICKER_STATE = "TICKER_STATE"
     HEALTH_CHANGE = "HEALTH_CHANGE"
     HISTORICAL_TRADE = "HISTORICAL_TRADE"
+    HISTORY_PROGRESS = "HISTORY_PROGRESS"
     ADJUST_HISTORY = "ADJUST_HISTORY"
     INVALID_TICKER = "INVALID_TICKER"
     ERROR = "ERROR"
@@ -146,6 +147,7 @@ class _ClientCoreMixin(_ClientBase):
                     self._state_cb,
                     self._daily_cb,
                     self._order_change_v2_cb,
+                    self._progress_cb,
                 )
             else:
                 code = self._backend.initialize_market_login(
@@ -154,6 +156,7 @@ class _ClientCoreMixin(_ClientBase):
                     self._password,
                     self._state_cb,
                     self._daily_cb,
+                    self._progress_cb,
                 )
             _check(code)
 
@@ -204,6 +207,10 @@ class _ClientCoreMixin(_ClientBase):
                 (
                     "set_history_trade_callback_v2",
                     lambda: self._backend.set_history_trade_callback_v2(self._history_trade_cb),
+                ),
+                (
+                    "set_serie_progress_callback",
+                    lambda: self._backend.set_serie_progress_callback(self._progress_cb),
                 ),
                 (
                     "set_adjust_history_callback_v2",
@@ -339,6 +346,7 @@ class _ClientCoreMixin(_ClientBase):
             try:
                 self._backend.set_trade_callback_v2(None)
                 self._backend.set_history_trade_callback_v2(None)
+                self._backend.set_serie_progress_callback(None)
                 self._backend.set_price_depth_callback(None)
                 self._backend.set_offer_book_callback_v2(None)
                 self._backend.set_order_change_callback_v2(None)
@@ -371,9 +379,33 @@ class _ClientCoreMixin(_ClientBase):
         name = event.value if isinstance(event, Event) else str(event)
         return self._dispatcher.on(name)
 
+    def off(self, event: Event | str, fn: Callable[..., None]) -> None:
+        """Removes an event handler registered via ``on``/``add_handler``.
+
+        Idempotent: removing an unknown handler is a no-op. Use it to run
+        multiple ingestions against the same client without duplicating writes.
+        """
+        name = event.value if isinstance(event, Event) else str(event)
+        self._dispatcher.remove_handler(name, fn)
+
     def run(self) -> None:
-        """Blocks calling thread, keeping event loop active."""
+        """Blocks the calling thread, keeping the session alive.
+
+        This is a keep-alive wait loop (typically the application main loop):
+        it does NOT pump events. Handlers are invoked by the dispatcher thread
+        that ``connect()`` starts, so subscriptions and historical callbacks
+        keep flowing whether or not ``run()`` is running.
+        """
         self._dispatcher.run()
+
+    def interrupt_run(self) -> None:
+        """Unblocks a thread waiting in :meth:`run` without stopping events.
+
+        Unlike :meth:`stop`, the dispatcher thread keeps pumping afterwards, so
+        the session stays usable (e.g. another ``ingest_*`` run with
+        ``stop_client=False``).
+        """
+        self._dispatcher.stop_run()
 
     def stop(self) -> None:
         """Signals stop event to event dispatcher."""

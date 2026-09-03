@@ -18,6 +18,7 @@ from profitdll_wrapper._bindings.callbacks import (
     TOfferBookCallbackV2,
     TOrderChangeCallbackV2,
     TPriceDepthCallback,
+    TProgressCallback,
     TStateCallback,
     TSystemHealthCallback,
     TTradeCallbackV2,
@@ -152,6 +153,7 @@ class ProfitClient(
         self._history_trade_cb = keep_alive(
             "history_trade", TTradeCallbackV2(self._on_history_trade)
         )
+        self._progress_cb = keep_alive("progress", TProgressCallback(self._on_history_progress))
         self._adjust_history_v2_cb = keep_alive(
             "adjust_history_v2", TAdjustHistoryCallbackV2(self._on_adjust_history_v2)
         )
